@@ -9,11 +9,33 @@ const api = axios.create({
   }
 });
 
+// Intercepteur pour ajouter la clé API à toutes les requêtes
+api.interceptors.request.use(
+  (config) => {
+    // Récupérer la clé API du localStorage
+    const apiKey = localStorage.getItem('firms_map_key');
+    if (apiKey) {
+      // Ajouter la clé comme paramètre de requête
+      config.params = {
+        ...config.params,
+        apiKey: apiKey
+      };
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 export const getFires = async (params) => {
   try {
     const response = await api.get('/fires', { params });
     return response.data;
   } catch (error) {
+    if (error.response?.status === 401) {
+      throw new Error('Clé API FIRMS invalide ou manquante. Vérifiez votre clé dans les paramètres.');
+    }
     throw new Error(error.response?.data?.error || 'Erreur lors de la récupération des feux');
   }
 };
