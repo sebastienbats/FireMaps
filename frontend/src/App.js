@@ -21,7 +21,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [alerts, setAlerts] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [apiKeyError, setApiKeyError] = useState(false);
+  const [apiInfo, setApiInfo] = useState(null);
 
   // Charger les sources au démarrage
   useEffect(() => {
@@ -44,32 +44,35 @@ function App() {
 
   // Charger les feux
   const fetchFires = async () => {
-    // Vérifier la clé API
     const apiKey = localStorage.getItem('firms_map_key');
     if (!apiKey || apiKey.trim() === '') {
       toast.error('⚠️ Veuillez entrer votre clé API FIRMS dans les paramètres');
-      setApiKeyError(true);
       return;
     }
-    setApiKeyError(false);
     
     setLoading(true);
     try {
-      console.log('🔍 Chargement des feux avec source:', selectedSource);
       const data = await getFires({
         source: selectedSource,
         days: dayRange,
         startDate,
         endDate
       });
+      
       setFires(data.data);
       setFilteredFires(data.data);
       setLastUpdate(data.timestamp);
-      toast.success(`${data.count} feux détectés`);
+      setApiInfo({
+        format: data.format,
+        area: data.area,
+        total: data.total,
+        count: data.count
+      });
+      
+      toast.success(`✅ ${data.count} feux détectés (format: ${data.format})`);
     } catch (error) {
       console.error('❌ Erreur:', error);
       toast.error(error.message || 'Erreur lors du chargement des feux');
-      setApiKeyError(true);
     } finally {
       setLoading(false);
     }
@@ -104,8 +107,7 @@ function App() {
         ? await exportCSV(filteredFires)
         : await exportGeoJSON(filteredFires);
       
-      toast.success(`Export ${format.toUpperCase()} sauvegardé sur le serveur`);
-      // Télécharger le fichier
+      toast.success(`✅ Export ${format.toUpperCase()} sauvegardé`);
       window.open(result.downloadUrl, '_blank');
     } catch (error) {
       toast.error(error.message || 'Erreur lors de l\'export');
@@ -216,9 +218,21 @@ function App() {
               <span className="stat-label">Feux détectés</span>
               <span className="stat-value">{filteredFires.length}</span>
             </div>
+            {apiInfo && (
+              <>
+                <div className="stat-item">
+                  <span className="stat-label">Format</span>
+                  <span className="stat-value small">{apiInfo.format}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Zone</span>
+                  <span className="stat-value small">{apiInfo.area}</span>
+                </div>
+              </>
+            )}
             {lastUpdate && (
               <div className="stat-item">
-                <span className="stat-label">Dernière mise à jour</span>
+                <span className="stat-label">Mise à jour</span>
                 <span className="stat-value small">
                   {new Date(lastUpdate).toLocaleString('fr-FR')}
                 </span>
