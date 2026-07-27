@@ -6,16 +6,16 @@ const WIND_CONFIG = {
   latMax: 51.5,
   lonMin: -5.5,
   lonMax: 9.5,
-  step: 1.0,
+  step: 1.5, // Pas plus grand pour réduire le nombre de points
   timeout: 30000,
   maxRetries: 3,
-  retryDelay: 5000 // 5 secondes entre les tentatives
+  retryDelay: 5000
 };
 
 // Cache pour éviter les requêtes répétées
 let windCache = null;
 let windCacheTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
 export const fetchWindData = async () => {
   try {
@@ -27,9 +27,10 @@ export const fetchWindData = async () => {
 
     console.log('🌬️ Récupération des données vent...');
     
+    // Utiliser une grille plus petite pour éviter les erreurs 400
     const { latMin, latMax, lonMin, lonMax, step } = WIND_CONFIG;
     
-    // Générer la grille de points avec un pas plus grand
+    // Générer la grille de points
     const lats = [];
     const lons = [];
     for (let lat = latMin; lat <= latMax; lat += step) {
@@ -39,12 +40,13 @@ export const fetchWindData = async () => {
       lons.push(parseFloat(lon.toFixed(1)));
     }
 
-    // Vérifier que le nombre de points n'est pas trop grand
     const totalPoints = lats.length * lons.length;
-    if (totalPoints > 200) {
-      console.warn(`⚠️ Trop de points (${totalPoints}), réduction du pas...`);
-      // Utiliser un pas plus grand
-      const newStep = step + 0.5;
+    console.log(`📊 Nombre de points: ${lats.length} x ${lons.length} = ${totalPoints}`);
+
+    // Si trop de points, réduire encore le pas
+    if (totalPoints > 50) {
+      console.warn(`⚠️ Trop de points (${totalPoints}), réduction...`);
+      const newStep = 2.0;
       const newLats = [];
       const newLons = [];
       for (let lat = latMin; lat <= latMax; lat += newStep) {
@@ -60,8 +62,8 @@ export const fetchWindData = async () => {
 
   } catch (error) {
     console.error('❌ Erreur fetchWindData:', error);
-    // En cas d'erreur, retourner null au lieu de throw
-    return null;
+    // En cas d'erreur, essayer le mode simple
+    return await fetchWindDataSimple();
   }
 };
 
@@ -72,7 +74,7 @@ const fetchWindDataWithRetry = async (lats, lons, retryCount = 0) => {
   } catch (error) {
     if (error.response?.status === 429 && retryCount < WIND_CONFIG.maxRetries) {
       const delay = WIND_CONFIG.retryDelay * (retryCount + 1);
-      console.log(`⏳ Rate limit atteint, nouvelle tentative dans ${delay/1000}s... (${retryCount + 1}/${WIND_CONFIG.maxRetries})`);
+      console.log(`⏳ Rate limit atteint, nouvelle tentative dans ${delay/1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return await fetchWindDataWithRetry(lats, lons, retryCount + 1);
     }
@@ -88,19 +90,39 @@ const fetchWindDataWithParams = async (lats, lons) => {
     const forecastHour = new Date(now.getTime() + 3600 * 1000);
     const dateStr = forecastHour.toISOString().slice(0, 10);
     
-    // Construire l'URL Open-Meteo avec une grille réduite
-    const latStr = lats.join(',');
-    const lonStr = lons.join(',');
+    // Construire l'URL Open-Meteo
+    // Limiter le nombre de points pour éviter les erreurs 400
+    const maxPoints = 20;
+    let selectedLats = lats;
+    let selectedLons = lons;
     
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latStr}&longitude=${lonStr}&hourly=wind_u_10m,wind_v_10m&timezone=Europe/Paris&start_date=${dateStr}&end_date=${dateStr}`;
+    if (lats.length * lons.length > maxPoints) {
+      // Réduire le nombre de points
+      const ratio = Math.sqrt(maxPoints / (lats.length * lons.length));
+      const newStep = 1 / ratio;
+      selectedLats = [];
+      selectedLons = [];
+      for (let i = 0; i < lats.length; i += Math.max(1, Math.round(1/ratio))) {
+        selectedLats.push(lats[i]);
+      }
+      for (let i = 0; i < lons.length; i += Math.max(1, Math.round(1/ratio))) {
+        selectedLons.push(lons[i]);
+      }
+    }
     
-    console.log(`📊 Nombre de points: ${lats.length} x ${lons.length} = ${lats.length * lons.length}`);
+    const latStr = selectedLats.join(',');
+    const lonStr = selectedLons.join(',');
+    
+    // Utiliser forecast_days=1 au lieu de start_date/end_date pour simplifier
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latStr}&longitude=${lonStr}&hourly=wind_u_10m,wind_v_10m&timezone=Europe/Paris&forecast_days=1`;
+    
+    console.log(`📊 Points demandés: ${selectedLats.length} x ${selectedLons.length} = ${selectedLats.length * selectedLons.length}`);
 
     const response = await axios.get(url, { 
       timeout: WIND_CONFIG.timeout,
       headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'FireMap-App/1.0'
+        'Accept': 'application/json'
+        // User-Agent est automatiquement géré par le navigateur, on ne le modifie pas
       }
     });
     
@@ -133,8 +155,8 @@ const fetchWindDataWithParams = async (lats, lons) => {
     const vValues = vData[targetIdx] || [];
 
     // Réorganiser en tableau 2D
-    const nx = lons.length;
-    const ny = lats.length;
+    const nx = selectedLons.length;
+    const ny = selectedLats.length;
     const uGrid = [];
     const vGrid = [];
 
@@ -155,12 +177,12 @@ const fetchWindDataWithParams = async (lats, lons) => {
       header: {
         nx: nx,
         ny: ny,
-        lo1: parseFloat(lons[0]),
-        lo2: parseFloat(lons[lons.length - 1]),
-        la1: parseFloat(lats[0]),
-        la2: parseFloat(lats[lats.length - 1]),
-        dx: parseFloat((lons[1] - lons[0]).toFixed(1)),
-        dy: parseFloat((lats[1] - lats[0]).toFixed(1)),
+        lo1: parseFloat(selectedLons[0]),
+        lo2: parseFloat(selectedLons[selectedLons.length - 1]),
+        la1: parseFloat(selectedLats[0]),
+        la2: parseFloat(selectedLats[selectedLats.length - 1]),
+        dx: selectedLons.length > 1 ? parseFloat((selectedLons[1] - selectedLons[0]).toFixed(1)) : 0,
+        dy: selectedLats.length > 1 ? parseFloat((selectedLats[1] - selectedLats[0]).toFixed(1)) : 0,
         parameterCategory: "wind",
         parameterNumber: "wind",
         refTime: new Date().toISOString()
@@ -180,30 +202,20 @@ const fetchWindDataWithParams = async (lats, lons) => {
 
   } catch (error) {
     if (error.response?.status === 400) {
-      console.error('❌ Erreur 400 - Requête mal formée. Réduction du nombre de points...');
-      // Réduire encore le nombre de points
-      const newStep = 2.0;
-      const latMin = 41.2, latMax = 51.5, lonMin = -5.5, lonMax = 9.5;
-      const newLats = [];
-      const newLons = [];
-      for (let lat = latMin; lat <= latMax; lat += newStep) {
-        newLats.push(parseFloat(lat.toFixed(1)));
-      }
-      for (let lon = lonMin; lon <= lonMax; lon += newStep) {
-        newLons.push(parseFloat(lon.toFixed(1)));
-      }
-      return await fetchWindDataWithParams(newLats, newLons);
+      console.error('❌ Erreur 400 - Requête mal formée. Utilisation du mode simple...');
+      // Utiliser le mode simple en fallback
+      return await fetchWindDataSimple();
     }
     throw error;
   }
 };
 
-// Fonction simple avec un seul point (fallback)
+// Fonction simple avec des points clés en France
 export const fetchWindDataSimple = async () => {
   try {
     console.log('🌬️ Récupération des données vent (mode simple)...');
     
-    // Vérifier le cache pour le mode simple
+    // Vérifier le cache
     const cacheKey = 'wind_simple';
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
@@ -216,18 +228,17 @@ export const fetchWindDataSimple = async () => {
       } catch (e) {}
     }
     
-    // Utiliser plusieurs points clés en France
+    // Points clés en France métropolitaine (grille 3x3)
     const points = [
-      { lat: 44.8, lon: -0.6 }, // Bordeaux
-      { lat: 48.9, lon: 2.3 },  // Paris
-      { lat: 43.6, lon: 1.4 },  // Toulouse
-      { lat: 47.2, lon: -1.6 }, // Nantes
-      { lat: 45.8, lon: 4.8 },  // Lyon
-      { lat: 43.3, lon: 5.4 },  // Marseille
-      { lat: 48.6, lon: 7.7 },  // Strasbourg
-      { lat: 50.6, lon: 3.1 },  // Lille
-      { lat: 42.7, lon: 2.9 },  // Perpignan
-      { lat: 44.0, lon: 6.2 }   // Nice
+      { lat: 44.0, lon: -1.0 }, // Sud-Ouest
+      { lat: 44.0, lon: 2.0 },  // Sud-Centre
+      { lat: 44.0, lon: 5.0 },  // Sud-Est
+      { lat: 47.0, lon: -1.0 }, // Ouest
+      { lat: 47.0, lon: 2.0 },  // Centre
+      { lat: 47.0, lon: 5.0 },  // Est
+      { lat: 50.0, lon: -1.0 }, // Nord-Ouest
+      { lat: 50.0, lon: 2.0 },  // Nord
+      { lat: 50.0, lon: 5.0 }   // Nord-Est
     ];
     
     // Récupérer les données pour chaque point avec un délai
@@ -237,7 +248,7 @@ export const fetchWindDataSimple = async () => {
       try {
         // Attendre entre chaque requête pour éviter le rate limiting
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
         
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&hourly=wind_u_10m,wind_v_10m&timezone=Europe/Paris&forecast_days=1`;
@@ -252,6 +263,7 @@ export const fetchWindDataSimple = async () => {
             u: u,
             v: v
           });
+          console.log(`✅ Point ${i+1}/${points.length}: ${p.lat},${p.lon} -> u=${u.toFixed(1)}, v=${v.toFixed(1)}`);
         }
       } catch (err) {
         console.warn(`⚠️ Erreur pour le point ${p.lat},${p.lon}:`, err.message);
@@ -316,4 +328,52 @@ export const fetchWindDataSimple = async () => {
     console.error('❌ Erreur fetchWindDataSimple:', error);
     return null;
   }
+};
+
+// Fonction de fallback avec des données simulées (si tout échoue)
+export const getFallbackWindData = () => {
+  console.log('🌬️ Utilisation des données vent de fallback');
+  
+  // Créer une grille 5x5 avec des vents simulés
+  const lats = [42, 44, 46, 48, 50];
+  const lons = [-4, -2, 0, 2, 4, 6, 8];
+  
+  const nx = lons.length;
+  const ny = lats.length;
+  const uGrid = [];
+  const vGrid = [];
+
+  for (let j = 0; j < ny; j++) {
+    const rowU = [];
+    const rowV = [];
+    for (let i = 0; i < nx; i++) {
+      // Simuler des vents avec des variations
+      const u = 5 * Math.sin(i * 0.5 + j * 0.3) + 2 * Math.cos(i * 0.7 - j * 0.4);
+      const v = 3 * Math.cos(i * 0.4 + j * 0.6) + 4 * Math.sin(i * 0.3 - j * 0.5);
+      rowU.push(u);
+      rowV.push(v);
+    }
+    uGrid.push(rowU);
+    vGrid.push(rowV);
+  }
+
+  return {
+    header: {
+      nx: nx,
+      ny: ny,
+      lo1: lons[0],
+      lo2: lons[lons.length - 1],
+      la1: lats[0],
+      la2: lats[lats.length - 1],
+      dx: lons[1] - lons[0],
+      dy: lats[1] - lats[0],
+      parameterCategory: "wind",
+      parameterNumber: "wind",
+      refTime: new Date().toISOString()
+    },
+    data: {
+      u: uGrid,
+      v: vGrid
+    }
+  };
 };
