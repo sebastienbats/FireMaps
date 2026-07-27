@@ -38,3 +38,8 @@
 .dark .map-container .leaflet-control-zoom a:hover {
   background: #3a4a6a;
 }
+
+/* Correction pour les marqueurs en dark mode */
+.dark .fire-marker {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
