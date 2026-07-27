@@ -6,6 +6,7 @@ import Controls from './components/Controls/Controls';
 import FireChart from './components/Charts/FireChart';
 import Alerts from './components/Alerts/Alerts';
 import { getFires, getSources, exportCSV, exportGeoJSON } from './services/api';
+import { fetchWindData } from './services/windService';
 
 function App() {
   const [fires, setFires] = useState([]);
@@ -18,6 +19,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showSdis, setShowSdis] = useState(false);
+  const [showWind, setShowWind] = useState(false);
+  const [windData, setWindData] = useState(null);
+  const [windLoading, setWindLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [alerts, setAlerts] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -41,6 +45,41 @@ function App() {
     document.body.className = darkMode ? 'dark' : '';
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
+
+  // Charger les données vent
+  const loadWindData = async () => {
+    if (windLoading) return;
+    
+    setWindLoading(true);
+    try {
+      toast.loading('🌬️ Chargement des données vent...', { id: 'wind' });
+      const data = await fetchWindData();
+      setWindData(data);
+      toast.success('🌬️ Données vent chargées', { id: 'wind' });
+    } catch (error) {
+      console.error('❌ Erreur vent:', error);
+      toast.error('❌ Erreur lors du chargement des données vent', { id: 'wind' });
+      setShowWind(false);
+    } finally {
+      setWindLoading(false);
+    }
+  };
+
+  // Gérer le toggle du vent
+  const handleWindToggle = async (forceLoad = false) => {
+    if (showWind && !forceLoad) {
+      // Désactiver le vent
+      setShowWind(false);
+      setWindData(null);
+      toast.success('🌬️ Couche vent désactivée');
+    } else {
+      // Activer le vent
+      setShowWind(true);
+      if (!windData) {
+        await loadWindData();
+      }
+    }
+  };
 
   // Charger les feux
   const fetchFires = async () => {
@@ -222,6 +261,9 @@ function App() {
             setShowHeatmap={setShowHeatmap}
             showSdis={showSdis}
             setShowSdis={setShowSdis}
+            showWind={showWind}
+            setShowWind={handleWindToggle}
+            windLoading={windLoading}
             darkMode={darkMode}
           />
           
@@ -258,6 +300,12 @@ function App() {
                 </span>
               </div>
             )}
+            {windData && (
+              <div className="stat-item">
+                <span className="stat-label">Vent</span>
+                <span className="stat-value small">✅ Chargé</span>
+              </div>
+            )}
           </div>
 
           {alerts.length > 0 && <Alerts alerts={alerts} />}
@@ -271,6 +319,9 @@ function App() {
               showSdis={showSdis}
               darkMode={darkMode}
               alerts={alerts}
+              showWind={showWind}
+              windData={windData}
+              onWindToggle={handleWindToggle}
             />
           </div>
           <div className="chart-container">
