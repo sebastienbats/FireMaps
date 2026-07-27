@@ -76,6 +76,12 @@ function App() {
         message += ` (${data.total_world} dans le monde, ${data.total_france} en France)`;
       }
       toast.success(message);
+      
+      // Si la heatmap est active, forcer le rechargement
+      if (showHeatmap) {
+        setShowHeatmap(false);
+        setTimeout(() => setShowHeatmap(true), 100);
+      }
     } catch (error) {
       console.error('❌ Erreur:', error);
       toast.error(error.message || 'Erreur lors du chargement des feux');
