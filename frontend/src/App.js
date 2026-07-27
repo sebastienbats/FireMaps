@@ -65,11 +65,17 @@ function App() {
       setApiInfo({
         format: data.format,
         area: data.area,
-        total: data.total,
-        count: data.count
+        total_world: data.total_world,
+        total_france: data.total_france,
+        count: data.count,
+        bbox: data.bbox
       });
       
-      toast.success(`✅ ${data.count} feux détectés (format: ${data.format})`);
+      let message = `✅ ${data.count} feux en France`;
+      if (data.total_world) {
+        message += ` (${data.total_world} dans le monde, ${data.total_france} en France)`;
+      }
+      toast.success(message);
     } catch (error) {
       console.error('❌ Erreur:', error);
       toast.error(error.message || 'Erreur lors du chargement des feux');
@@ -215,18 +221,26 @@ function App() {
           
           <div className="stats-panel">
             <div className="stat-item">
-              <span className="stat-label">Feux détectés</span>
+              <span className="stat-label">Feux en France</span>
               <span className="stat-value">{filteredFires.length}</span>
             </div>
             {apiInfo && (
               <>
                 <div className="stat-item">
+                  <span className="stat-label">Total dans le monde</span>
+                  <span className="stat-value small">{apiInfo.total_world?.toLocaleString() || 'N/A'}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Total en France</span>
+                  <span className="stat-value small">{apiInfo.total_france?.toLocaleString() || 'N/A'}</span>
+                </div>
+                <div className="stat-item">
                   <span className="stat-label">Format</span>
-                  <span className="stat-value small">{apiInfo.format}</span>
+                  <span className="stat-value small">{apiInfo.format || 'N/A'}</span>
                 </div>
                 <div className="stat-item">
                   <span className="stat-label">Zone</span>
-                  <span className="stat-value small">{apiInfo.area}</span>
+                  <span className="stat-value small">{apiInfo.area || 'N/A'}</span>
                 </div>
               </>
             )}
