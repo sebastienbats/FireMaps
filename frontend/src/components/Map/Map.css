@@ -58,12 +58,18 @@
   transition: opacity 0.3s ease;
 }
 
+/* Dark mode pour la heatmap */
+.dark .leaflet-heatmap-layer {
+  opacity: 0.8;
+}
+
 /* ============================================================
    POPUPS
    ============================================================ */
 .leaflet-popup-content-wrapper {
   border-radius: 8px !important;
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.2) !important;
+  min-width: 200px;
 }
 
 .leaflet-popup-content {
@@ -79,6 +85,11 @@
 }
 
 .leaflet-popup-content b {
+  color: #2c3e50;
+}
+
+.leaflet-popup-content .popup-label {
+  font-weight: 600;
   color: #2c3e50;
 }
 
@@ -187,40 +198,88 @@
 }
 
 /* ============================================================
-   RESPONSIVE
+   SDIS MARKERS (Casernes de pompiers)
    ============================================================ */
-@media (max-width: 768px) {
-  .map-container {
-    min-height: 300px;
-  }
-  
-  .leaflet-popup-content {
-    font-size: 0.75rem;
-    min-width: 140px;
-  }
-  
-  .fire-marker {
-    font-size: 18px;
-  }
+.sdis-marker {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
-@media (max-width: 480px) {
-  .map-container {
-    min-height: 250px;
+.sdis-marker-container {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark .sdis-marker {
+  filter: drop-shadow(0 2px 8px rgba(220, 38, 38, 0.4));
+}
+
+/* ============================================================
+   VENT LAYER (Leaflet-Velocity)
+   ============================================================ */
+.leaflet-velocity-layer {
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+/* Contrôle du vent (panneau de légende) */
+.leaflet-velocity-control {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-radius: 4px !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3) !important;
+  font-size: 0.75rem !important;
+  min-width: 100px;
+}
+
+.dark .leaflet-velocity-control {
+  background: rgba(26, 26, 46, 0.9) !important;
+  color: #eaeaea !important;
+  border: 1px solid #3a4a6a !important;
+}
+
+/* ============================================================
+   HEATMAP UNAVAILABLE MESSAGE
+   ============================================================ */
+.heatmap-unavailable {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  z-index: 1000;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.dark .heatmap-unavailable {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eaeaea;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
   }
-  
-  .leaflet-popup-content {
-    font-size: 0.7rem;
-    min-width: 120px;
-  }
-  
-  .fire-marker {
-    font-size: 16px;
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
 /* ============================================================
-   LOADING OVERLAY (optionnel)
+   LOADING OVERLAY
    ============================================================ */
 .map-loading {
   position: absolute;
@@ -230,6 +289,7 @@
   bottom: 0;
   background: rgba(255, 255, 255, 0.7);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 1000;
@@ -249,46 +309,19 @@
   animation: spin 0.8s linear infinite;
 }
 
+.map-loading-text {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+
+.dark .map-loading-text {
+  color: #eaeaea;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-/* ============================================================
-   HEATMAP UNAVAILABLE MESSAGE
-   ============================================================ */
-.heatmap-unavailable {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.75);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  z-index: 1000;
-  pointer-events: none;
-  white-space: nowrap;
-  backdrop-filter: blur(4px);
-  animation: fadeInUp 0.3s ease-out;
-}
-
-.dark .heatmap-unavailable {
-  background: rgba(255, 255, 255, 0.1);
-  color: #eaeaea;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -325,6 +358,59 @@
 }
 
 /* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .map-container {
+    min-height: 300px;
+  }
+  
+  .leaflet-popup-content {
+    font-size: 0.75rem;
+    min-width: 140px;
+  }
+  
+  .fire-marker {
+    font-size: 18px;
+  }
+  
+  .sdis-marker {
+    font-size: 16px;
+  }
+  
+  .leaflet-velocity-control {
+    font-size: 0.65rem !important;
+    padding: 4px 8px !important;
+    min-width: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-container {
+    min-height: 250px;
+  }
+  
+  .leaflet-popup-content {
+    font-size: 0.7rem;
+    min-width: 120px;
+  }
+  
+  .fire-marker {
+    font-size: 16px;
+  }
+  
+  .sdis-marker {
+    font-size: 14px;
+  }
+  
+  .leaflet-velocity-control {
+    font-size: 0.6rem !important;
+    padding: 3px 6px !important;
+    min-width: 60px;
+  }
+}
+
+/* ============================================================
    IMPRESSION
    ============================================================ */
 @media print {
@@ -337,4 +423,50 @@
     filter: none !important;
     animation: none !important;
   }
+  
+  .leaflet-velocity-layer {
+    opacity: 0.5 !important;
+  }
+  
+  .leaflet-control-zoom {
+    display: none !important;
+  }
+  
+  .leaflet-control-attribution {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   CUSTOM SCROLLBAR POUR LA CARTE
+   ============================================================ */
+#map::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#map::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+#map::-webkit-scrollbar-thumb {
+  background: rgba(230, 126, 34, 0.5);
+  border-radius: 4px;
+}
+
+#map::-webkit-scrollbar-thumb:hover {
+  background: rgba(230, 126, 34, 0.8);
+}
+
+.dark #map::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark #map::-webkit-scrollbar-thumb {
+  background: rgba(243, 156, 18, 0.5);
+}
+
+.dark #map::-webkit-scrollbar-thumb:hover {
+  background: rgba(243, 156, 18, 0.8);
 }
