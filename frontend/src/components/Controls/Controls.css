@@ -1,0 +1,226 @@
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.control-label .icon {
+  font-size: 1rem;
+}
+
+.control-label-small {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 0 4px;
+}
+
+.control-input-group {
+  display: flex;
+  gap: 4px;
+}
+
+.api-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.app.dark .api-input {
+  background: #0f1b2d;
+  color: #eaeaea;
+  border-color: #2a3a5a;
+}
+
+.api-input:focus {
+  border-color: #e67e22;
+  outline: none;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input-small {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.app.dark .input-small {
+  background: #0f1b2d;
+  color: #eaeaea;
+  border-color: #2a3a5a;
+}
+
+.input-date {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  flex: 1;
+}
+
+.app.dark .input-date {
+  background: #0f1b2d;
+  color: #eaeaea;
+  border-color: #2a3a5a;
+}
+
+.input-suffix {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.control-help {
+  font-size: 0.7rem;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.app.dark .control-help {
+  color: #adb5bd;
+}
+
+.control-help a {
+  color: #e67e22;
+  text-decoration: none;
+}
+
+.control-help a:hover {
+  text-decoration: underline;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.filter-label input {
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #e67e22;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #d35400;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #ecf0f1;
+  color: #2c3e50;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.app.dark .btn-secondary {
+  background: #2a3a5a;
+  color: #eaeaea;
+}
+
+.btn-secondary:hover {
+  background: #d5dbdb;
+}
+
+.app.dark .btn-secondary:hover {
+  background: #3a4a6a;
+}
+
+.export-group {
+  display: flex;
+  gap: 8px;
+}
+
+.export-group .btn-secondary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+/* React Select custom styles */
+.react-select .react-select__control {
+  min-height: 32px;
+  border-color: #ddd;
+}
+
+.app.dark .react-select .react-select__control {
+  background: #0f1b2d;
+  border-color: #2a3a5a;
+}
+
+.app.dark .react-select .react-select__single-value {
+  color: #eaeaea;
+}
+
+.app.dark .react-select .react-select__menu {
+  background: #0f1b2d;
+  border-color: #2a3a5a;
+}
+
+.app.dark .react-select .react-select__option {
+  color: #eaeaea;
+}
+
+.app.dark .react-select .react-select__option--is-focused {
+  background: #1a2a4a;
+}
+
+.app.dark .react-select .react-select__option--is-selected {
+  background: #e67e22;
+}
