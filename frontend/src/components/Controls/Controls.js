@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
@@ -25,10 +25,34 @@ const Controls = ({
 }) => {
   const [highConfidence, setHighConfidence] = useState(true);
   const [frp, setFrp] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('firms_map_key') || '');
+  const [apiKeyStatus, setApiKeyStatus] = useState('');
 
   const handleFilterChange = () => {
     onFilterChange({ highConfidence, frp });
   };
+
+  const handleSaveApiKey = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem('firms_map_key', apiKey.trim());
+      setApiKeyStatus('✅ Clé sauvegardée');
+      setTimeout(() => setApiKeyStatus(''), 3000);
+    } else {
+      localStorage.removeItem('firms_map_key');
+      setApiKeyStatus('❌ Clé supprimée');
+      setTimeout(() => setApiKeyStatus(''), 3000);
+    }
+  };
+
+  useEffect(() => {
+    // Mettre à jour la clé si elle change dans localStorage
+    const handleStorageChange = () => {
+      const newKey = localStorage.getItem('firms_map_key') || '';
+      setApiKey(newKey);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   return (
     <div className="controls">
@@ -39,21 +63,29 @@ const Controls = ({
         <div className="control-input-group">
           <input 
             type="password" 
-            placeholder="MAP_KEY"
+            placeholder="Entrez votre MAP_KEY"
             className="api-input"
-            onChange={(e) => localStorage.setItem('firms_map_key', e.target.value)}
-            defaultValue={localStorage.getItem('firms_map_key') || ''}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
           />
-          <button className="btn-secondary" onClick={() => {
-            const key = document.querySelector('.api-input').value;
-            if (key) localStorage.setItem('firms_map_key', key);
-          }}>
+          <button className="btn-secondary" onClick={handleSaveApiKey}>
             💾
           </button>
         </div>
+        {apiKeyStatus && (
+          <div className={`api-status ${apiKeyStatus.includes('✅') ? 'success' : 'error'}`}>
+            {apiKeyStatus}
+          </div>
+        )}
         <small className="control-help">
           Obtenez une clé sur <a href="https://firms.modaps.eosdis.nasa.gov/mapkey/" target="_blank" rel="noopener noreferrer">firms.modaps.eosdis.nasa.gov</a>
         </small>
+        {apiKey && (
+          <small className="control-help" style={{ color: '#27ae60' }}>
+            ✅ Clé chargée ({apiKey.substring(0, 4)}...{apiKey.substring(apiKey.length - 4)})
+          </small>
+        )}
       </div>
 
       <div className="control-group">
@@ -87,7 +119,7 @@ const Controls = ({
           <input 
             type="number" 
             value={dayRange} 
-            onChange={(e) => setDayRange(Math.min(Math.max(e.target.value, 1), 5))}
+            onChange={(e) => setDayRange(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 5))}
             min="1" 
             max="5"
             className="input-small"
@@ -163,7 +195,7 @@ const Controls = ({
         <button 
           className="btn-primary" 
           onClick={onFetch}
-          disabled={loading}
+          disabled={loading || !apiKey}
         >
           {loading ? (
             <PacmanLoader size={20} color="white" />
@@ -173,6 +205,11 @@ const Controls = ({
             </>
           )}
         </button>
+        {!apiKey && (
+          <small className="control-help" style={{ color: '#e74c3c' }}>
+            ⚠️ Veuillez entrer une clé API
+          </small>
+        )}
       </div>
 
       <div className="control-group">
@@ -180,10 +217,10 @@ const Controls = ({
           <span className="icon">📥</span> Exporter
         </label>
         <div className="export-group">
-          <button className="btn-secondary" onClick={() => onExport('csv')}>
+          <button className="btn-secondary" onClick={() => onExport('csv')} disabled={!apiKey}>
             📊 CSV
           </button>
-          <button className="btn-secondary" onClick={() => onExport('geojson')}>
+          <button className="btn-secondary" onClick={() => onExport('geojson')} disabled={!apiKey}>
             🗺️ GeoJSON
           </button>
         </div>
