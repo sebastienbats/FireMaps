@@ -5,29 +5,48 @@
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#e67e22" />
-  <meta name="description" content="Visualisation des feux en France - NASA FIRMS" />
+  <meta name="description" content="Visualisation des feux, vents et casernes SDIS en France - NASA FIRMS, Open-Meteo et data.gouv.fr" />
   <title>🔥 Feux & Vents & SDIS - France</title>
   
-  <!-- Leaflet CSS -->
+  <!-- ============================================================
+       FONT AWESOME 6.4.2 (icônes)
+       ============================================================ -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  
+  <!-- ============================================================
+       LEAFLET 1.9.4 (carte interactive)
+       ============================================================ -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
-  <!-- Leaflet-Velocity CSS -->
+  <!-- ============================================================
+       LEAFLET-VELOCITY (couche de vent animée)
+       ============================================================ -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.css" />
-  
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
 <body>
-  <noscript>Vous devez activer JavaScript pour utiliser cette application.</noscript>
+  <noscript>
+    <div style="text-align: center; padding: 40px; font-family: Arial, sans-serif;">
+      <h2>⚠️ JavaScript est désactivé</h2>
+      <p>Cette application nécessite JavaScript pour fonctionner.<br />
+      Veuillez l'activer dans les paramètres de votre navigateur.</p>
+    </div>
+  </noscript>
+  
   <div id="root"></div>
   
-  <!-- Leaflet JS -->
+  <!-- ============================================================
+       SCRIPTS - Chargement dans l'ordre des dépendances
+       ============================================================ -->
+  
+  <!-- 1. LEAFLET CORE -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
-  <!-- Leaflet.heat -->
+  <!-- 2. LEAFLET.HEAT (heatmap) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
   
-  <!-- Leaflet-Velocity -->
+  <!-- 3. LEAFLET-VELOCITY (vent) -->
   <script src="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
+  
+  <!-- 4. APPLICATION REACT (injecté par le build) -->
 </body>
 </html>
