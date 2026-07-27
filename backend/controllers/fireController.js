@@ -22,7 +22,7 @@ exports.getFires = async (req, res) => {
   try {
     const { 
       source = 'VIIRS_SNPP_NRT', 
-      days = 1, 
+      days = 3, 
       startDate, 
       endDate,
       apiKey
@@ -37,35 +37,91 @@ exports.getFires = async (req, res) => {
       });
     }
 
-    // Construire l'URL au format CSV avec date
+    // Vérifier la longueur de la clé
+    console.log(`🔑 Longueur de la clé: ${mapKey.length} caractères`);
+    console.log(`🔑 Début de la clé: ${mapKey.substring(0, 8)}...`);
+
+    // Essayer différents formats d'URL
     let url;
-    
+    let usedFormat = '';
+
+    // Format 1: Avec date (si startDate est fourni)
     if (startDate) {
-      // Format avec date spécifique: /api/area/csv/{key}/{source}/{area}/{date}
-      // Exemple: /api/area/csv/7427d7a5.../VIIRS_SNPP_NRT/world/1/2026-07-27
-      const area = 'world'; // ou utiliser la bounding box
-      const dateParam = startDate; // YYYY-MM-DD
-      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/1/${dateParam}`;
-    } else {
-      // Format avec nombre de jours: /api/area/csv/{key}/{source}/{area}/{days}
-      // Exemple: /api/area/csv/7427d7a5.../VIIRS_SNPP_NRT/world/3
-      const effectiveDays = Math.min(Math.max(parseInt(days) || 1, 1), 5);
-      const area = 'world'; // ou utiliser la bounding box
+      // Essayer avec bounding box France
+      const area = `${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
+      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/1/${startDate}`;
+      usedFormat = 'CSV avec date et bbox';
+    } 
+    // Format 2: Sans date, avec jours
+    else {
+      const effectiveDays = Math.min(Math.max(parseInt(days) || 3, 1), 5);
+      
+      // Essayer avec bounding box France
+      const area = `${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
       url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/${effectiveDays}`;
+      usedFormat = 'CSV avec jours et bbox';
     }
 
-    console.log(`📡 Requête FIRMS: ${source}`);
+    console.log(`📡 Format utilisé: ${usedFormat}`);
     console.log(`🔗 URL: ${url.replace(mapKey, '***')}`);
 
     const response = await fetch(url);
     
+    // Si la requête échoue avec bbox, essayer avec 'world'
+    if (response.status === 400 || response.status === 401) {
+      console.log('⚠️ Requête avec bbox échouée, tentative avec "world"...');
+      
+      let fallbackUrl;
+      if (startDate) {
+        fallbackUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/1/${startDate}`;
+      } else {
+        const effectiveDays = Math.min(Math.max(parseInt(days) || 3, 1), 5);
+        fallbackUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/${effectiveDays}`;
+      }
+      
+      console.log(`🔗 Fallback URL: ${fallbackUrl.replace(mapKey, '***')}`);
+      
+      const fallbackResponse = await fetch(fallbackUrl);
+      
+      if (!fallbackResponse.ok) {
+        const errorText = await fallbackResponse.text();
+        console.error(`❌ Erreur FIRMS (${fallbackResponse.status}):`, errorText);
+        
+        if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+          return res.status(401).json({ 
+            error: 'Clé API FIRMS invalide ou expirée. Vérifiez que vous utilisez une clé valide sur firms.modaps.eosdis.nasa.gov',
+            details: 'La clé doit être activée pour l\'API FIRMS. Obtenez une nouvelle clé si nécessaire.'
+          });
+        }
+        
+        return res.status(fallbackResponse.status).json({ 
+          error: `Erreur FIRMS: ${errorText}` 
+        });
+      }
+      
+      // Utiliser la réponse fallback
+      const csvText = await fallbackResponse.text();
+      const fires = parseCSVToJSON(csvText);
+      
+      return res.json({
+        success: true,
+        source,
+        count: fires.length,
+        data: fires,
+        timestamp: new Date().toISOString(),
+        url: fallbackUrl.replace(mapKey, '***'),
+        format: 'CSV with world area (fallback)'
+      });
+    }
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Erreur FIRMS (${response.status}):`, errorText);
       
       if (response.status === 401 || response.status === 403) {
         return res.status(401).json({ 
-          error: 'Clé API FIRMS invalide ou expirée. Vérifiez votre clé sur firms.modaps.eosdis.nasa.gov' 
+          error: 'Clé API FIRMS invalide ou expirée. Vérifiez votre clé sur firms.modaps.eosdis.nasa.gov',
+          details: 'La clé doit être activée pour l\'API FIRMS.'
         });
       }
       
@@ -80,7 +136,7 @@ exports.getFires = async (req, res) => {
     // Parser le CSV en JSON
     const fires = parseCSVToJSON(csvText);
 
-    // Filtrer par date si nécessaire (déjà fait par l'API)
+    // Filtrer par date si nécessaire
     let filteredFires = fires;
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -103,12 +159,13 @@ exports.getFires = async (req, res) => {
       count: filteredFires.length,
       data: filteredFires,
       timestamp: new Date().toISOString(),
-      url: url.replace(mapKey, '***')
+      url: url.replace(mapKey, '***'),
+      format: usedFormat
     });
 
   } catch (error) {
     console.error('❌ Erreur getFires:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des données' });
+    res.status(500).json({ error: 'Erreur lors de la récupération des données: ' + error.message });
   }
 };
 
