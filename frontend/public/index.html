@@ -41,12 +41,46 @@
   <!-- 1. LEAFLET CORE -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
-  <!-- 2. LEAFLET.HEAT (heatmap) -->
+  <!-- 2. LEAFLET.HEAT (heatmap) - Avec fallback CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
   
   <!-- 3. LEAFLET-VELOCITY (vent) -->
   <script src="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
   
-  <!-- 4. APPLICATION REACT (injecté par le build) -->
+  <!-- 4. VÉRIFICATION DU CHARGEMENT -->
+  <script>
+    // Vérifier que les plugins sont chargés
+    (function checkPlugins() {
+      console.log('🔍 Vérification des plugins Leaflet...');
+      
+      if (typeof L !== 'undefined') {
+        console.log('✅ Leaflet core chargé');
+        
+        if (typeof L.heatLayer === 'function') {
+          console.log('✅ Leaflet.heat chargé');
+        } else {
+          console.warn('⚠️ Leaflet.heat non chargé, tentative de chargement alternatif...');
+          // Tentative de chargement alternatif
+          var script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/leaflet-heat@0.2.0/leaflet-heat.js';
+          script.onload = function() {
+            console.log('✅ Leaflet.heat chargé (fallback)');
+          };
+          script.onerror = function() {
+            console.error('❌ Échec du chargement de Leaflet.heat');
+          };
+          document.head.appendChild(script);
+        }
+        
+        if (typeof L.velocityLayer === 'function') {
+          console.log('✅ Leaflet-Velocity chargé');
+        } else {
+          console.warn('⚠️ Leaflet-Velocity non chargé');
+        }
+      } else {
+        console.error('❌ Leaflet core non chargé');
+      }
+    })();
+  </script>
 </body>
 </html>
