@@ -2,13 +2,73 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 
-// Vérifier que les plugins sont chargés
+// Vérification robuste de la disponibilité de L.heatLayer
 const isHeatLayerAvailable = () => {
-  return typeof L.heatLayer === 'function';
+  try {
+    return typeof L !== 'undefined' && typeof L.heatLayer === 'function';
+  } catch (e) {
+    return false;
+  }
 };
 
 const isVelocityLayerAvailable = () => {
-  return typeof L.velocityLayer === 'function';
+  try {
+    return typeof L !== 'undefined' && typeof L.velocityLayer === 'function';
+  } catch (e) {
+    return false;
+  }
+};
+
+// Fonction pour charger dynamiquement leaflet.heat
+const loadHeatPlugin = () => {
+  return new Promise((resolve, reject) => {
+    if (isHeatLayerAvailable()) {
+      resolve();
+      return;
+    }
+    
+    console.log('📦 Tentative de chargement dynamique de leaflet.heat...');
+    
+    // Essayer plusieurs CDN
+    const cdnUrls = [
+      'https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js',
+      'https://cdn.jsdelivr.net/npm/leaflet-heat@0.2.0/leaflet-heat.js',
+      'https://unpkg.com/leaflet-heat@0.2.0/dist/leaflet-heat.js'
+    ];
+    
+    let currentIndex = 0;
+    
+    const tryLoad = () => {
+      if (currentIndex >= cdnUrls.length) {
+        reject(new Error('Tous les CDN ont échoué'));
+        return;
+      }
+      
+      const script = document.createElement('script');
+      script.src = cdnUrls[currentIndex];
+      script.async = true;
+      
+      script.onload = () => {
+        if (isHeatLayerAvailable()) {
+          console.log(`✅ leaflet.heat chargé depuis ${cdnUrls[currentIndex]}`);
+          resolve();
+        } else {
+          currentIndex++;
+          tryLoad();
+        }
+      };
+      
+      script.onerror = () => {
+        console.warn(`⚠️ Échec du chargement depuis ${cdnUrls[currentIndex]}`);
+        currentIndex++;
+        tryLoad();
+      };
+      
+      document.head.appendChild(script);
+    };
+    
+    tryLoad();
+  });
 };
 
 const Map = ({ 
@@ -26,7 +86,7 @@ const Map = ({
   const heatmapRef = useRef(null);
   const alertRefs = useRef([]);
   const velocityRef = useRef(null);
-  const windDataRef = useRef(null);
+  const heatLoadedRef = useRef(false);
 
   useEffect(() => {
     // Initialiser la carte
@@ -126,16 +186,34 @@ const Map = ({
 
   }, [fires, alerts]);
 
-  // Mettre à jour la heatmap
+  // Mettre à jour la heatmap avec chargement automatique du plugin
   useEffect(() => {
     if (!mapRef.current) return;
 
-    if (heatmapRef.current) {
-      mapRef.current.removeLayer(heatmapRef.current);
-      heatmapRef.current = null;
-    }
+    const updateHeatmap = async () => {
+      // Supprimer l'ancienne heatmap
+      if (heatmapRef.current) {
+        mapRef.current.removeLayer(heatmapRef.current);
+        heatmapRef.current = null;
+      }
 
-    if (showHeatmap && fires && fires.length > 0) {
+      if (!showHeatmap || !fires || fires.length === 0) {
+        return;
+      }
+
+      // Vérifier si le plugin est disponible
+      if (!isHeatLayerAvailable()) {
+        console.warn('⚠️ L.heatLayer non disponible, tentative de chargement...');
+        try {
+          await loadHeatPlugin();
+          heatLoadedRef.current = true;
+        } catch (error) {
+          console.error('❌ Échec du chargement de leaflet.heat:', error);
+          return;
+        }
+      }
+
+      // Vérifier à nouveau après le chargement
       if (isHeatLayerAvailable()) {
         console.log(`🔥 Création de la heatmap avec ${fires.length} points`);
         
@@ -153,9 +231,11 @@ const Map = ({
           }
         }).addTo(mapRef.current);
       } else {
-        console.warn('⚠️ L.heatLayer n\'est pas disponible');
+        console.error('❌ L.heatLayer toujours non disponible après chargement');
       }
-    }
+    };
+
+    updateHeatmap();
   }, [showHeatmap, fires]);
 
   // Gérer la couche vent
@@ -187,7 +267,6 @@ const Map = ({
       }
     } else if (showWind && !windData) {
       console.warn('🌬️ Aucune donnée vent disponible');
-      // Demander le chargement des données
       if (onWindToggle) {
         onWindToggle(true);
       }
