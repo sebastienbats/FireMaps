@@ -22,6 +22,7 @@ function App() {
   const [showWind, setShowWind] = useState(false);
   const [windData, setWindData] = useState(null);
   const [windLoading, setWindLoading] = useState(false);
+  const [windError, setWindError] = useState(false);
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [alerts, setAlerts] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -47,55 +48,44 @@ function App() {
   }, [darkMode]);
 
   // Charger les données vent
-  const loadWindData = async (retryCount = 0) => {
+  const loadWindData = async () => {
     if (windLoading) return;
     
     setWindLoading(true);
+    setWindError(false);
     const toastId = toast.loading('🌬️ Chargement des données vent...');
     
     try {
       let data;
-      try {
-        // Essayer d'abord avec la grille complète
-        data = await fetchWindData();
-      } catch (error) {
-        console.warn('⚠️ Échec de la grille complète, tentative avec le mode simple...');
-        // Fallback : utiliser le mode simple
+      
+      // Essayer d'abord avec la grille complète
+      data = await fetchWindData();
+      
+      if (!data) {
+        console.warn('⚠️ Échec de la grille complète, tentative avec le mode simplifié...');
         data = await fetchWindDataSimple();
       }
       
       if (data) {
         setWindData(data);
         toast.success('🌬️ Données vent chargées', { id: toastId });
+        setWindError(false);
       } else {
-        throw new Error('Aucune donnée reçue');
+        throw new Error('Aucune donnée de vent disponible');
       }
     } catch (error) {
       console.error('❌ Erreur vent:', error);
-      toast.error('❌ Erreur lors du chargement des données vent', { id: toastId });
+      setWindError(true);
+      toast.error('❌ Impossible de charger les données vent', { id: toastId });
       setShowWind(false);
-      
-      // Réessayer avec le mode simple si ce n'est pas déjà fait
-      if (retryCount === 0) {
-        try {
-          toast.loading('🔄 Tentative de récupération simplifiée...', { id: toastId });
-          const simpleData = await fetchWindDataSimple();
-          if (simpleData) {
-            setWindData(simpleData);
-            toast.success('🌬️ Données vent chargées (mode simplifié)', { id: toastId });
-          }
-        } catch (retryError) {
-          toast.error('❌ Impossible de charger les données vent', { id: toastId });
-        }
-      }
     } finally {
       setWindLoading(false);
     }
   };
 
   // Gérer le toggle du vent
-  const handleWindToggle = async (forceLoad = false) => {
-    if (showWind && !forceLoad) {
+  const handleWindToggle = async () => {
+    if (showWind) {
       // Désactiver le vent
       setShowWind(false);
       setWindData(null);
@@ -103,8 +93,11 @@ function App() {
     } else {
       // Activer le vent
       setShowWind(true);
-      if (!windData) {
+      if (!windData && !windError) {
         await loadWindData();
+      } else if (windError) {
+        toast.error('🌬️ Les données vent ne sont pas disponibles. Réessayez plus tard.');
+        setShowWind(false);
       }
     }
   };
@@ -332,6 +325,12 @@ function App() {
               <div className="stat-item">
                 <span className="stat-label">Vent</span>
                 <span className="stat-value small">✅ Chargé</span>
+              </div>
+            )}
+            {windError && (
+              <div className="stat-item">
+                <span className="stat-label">Vent</span>
+                <span className="stat-value small" style={{ color: '#e74c3c' }}>❌ Indisponible</span>
               </div>
             )}
           </div>
