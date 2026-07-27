@@ -37,15 +37,60 @@ Application web complète pour visualiser :
    git clone https://github.com/sebastienbats/FireMaps.git
    cd FireMaps
    ```
+2. Installation et exécution
+   ```bash
+   #Backend
+   cd backend && npm install && npm start
+   # ou en développement : npm run dev
+   #Frontend
+   cd frontend && npm install && npm start
+   #Le frontend sera accessible sur http://localhost:3000 et le backend sur http://localhost:5000.
+   ```  
 3. Obtenez une clé API FIRMS gratuite sur [https://firms.modaps.eosdis.nasa.gov/mapkey/](https://firms.modaps.eosdis.nasa.gov/api/map_key).
-4. Ouvrez `index.html` dans votre navigateur.
-5. Saisissez votre clé API, puis utilisez les boutons SDIS pour charger les casernes.
+4. Saisissez votre clé API, puis utilisez les boutons SDIS pour charger les casernes.
 
 ## 📦 Structure
-
-- `index.html` : fichier unique (HTML + CSS + JS)
-- `README.md` : documentation
-
+```text
+firms-app/
+├── backend/
+│   ├── package.json
+│   ├── server.js
+│   ├── routes/
+│   │   ├── fires.js
+│   │   └── exports.js
+│   ├── controllers/
+│   │   ├── fireController.js
+│   │   └── exportController.js
+│   └── exports/
+│       └── (dossier pour les fichiers exportés)
+└── frontend/
+    ├── package.json
+    ├── public/
+    │   └── index.html
+    └── src/
+        ├── index.js
+        ├── App.js
+        ├── App.css
+        ├── components/
+        │   ├── Map/
+        │   │   ├── Map.js
+        │   │   └── Map.css
+        │   ├── Controls/
+        │   │   ├── Controls.js
+        │   │   └── Controls.css
+        │   ├── Charts/
+        │   │   ├── FireChart.js
+        │   │   └── FireChart.css
+        │   └── Alerts/
+        │       ├── Alerts.js
+        │       └── Alerts.css
+        ├── hooks/
+        │   └── useFires.js
+        ├── services/
+        │   └── api.js
+        └── utils/
+            └── helpers.js
+```
 ## 🔧 Personnalisation SDIS
 
 - **Ajouter un département** : modifiez l'objet `sdisPresets` dans `app()`.
