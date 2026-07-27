@@ -27,6 +27,7 @@ const Controls = ({
   const [frp, setFrp] = useState(false);
   const [apiKey, setApiKey] = useState(localStorage.getItem('firms_map_key') || '');
   const [apiKeyStatus, setApiKeyStatus] = useState('');
+  const [isKeyValid, setIsKeyValid] = useState(false);
 
   const handleFilterChange = () => {
     onFilterChange({ highConfidence, frp });
@@ -35,23 +36,23 @@ const Controls = ({
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
       localStorage.setItem('firms_map_key', apiKey.trim());
+      setIsKeyValid(true);
       setApiKeyStatus('✅ Clé sauvegardée');
       setTimeout(() => setApiKeyStatus(''), 3000);
     } else {
       localStorage.removeItem('firms_map_key');
+      setIsKeyValid(false);
       setApiKeyStatus('❌ Clé supprimée');
       setTimeout(() => setApiKeyStatus(''), 3000);
     }
   };
 
+  // Vérifier la clé au chargement
   useEffect(() => {
-    // Mettre à jour la clé si elle change dans localStorage
-    const handleStorageChange = () => {
-      const newKey = localStorage.getItem('firms_map_key') || '';
-      setApiKey(newKey);
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    const savedKey = localStorage.getItem('firms_map_key');
+    if (savedKey && savedKey.trim()) {
+      setIsKeyValid(true);
+    }
   }, []);
 
   return (
@@ -66,7 +67,10 @@ const Controls = ({
             placeholder="Entrez votre MAP_KEY"
             className="api-input"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              setIsKeyValid(false);
+            }}
             onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
           />
           <button className="btn-secondary" onClick={handleSaveApiKey}>
@@ -82,8 +86,8 @@ const Controls = ({
           Obtenez une clé sur <a href="https://firms.modaps.eosdis.nasa.gov/mapkey/" target="_blank" rel="noopener noreferrer">firms.modaps.eosdis.nasa.gov</a>
         </small>
         {apiKey && (
-          <small className="control-help" style={{ color: '#27ae60' }}>
-            ✅ Clé chargée ({apiKey.substring(0, 4)}...{apiKey.substring(apiKey.length - 4)})
+          <small className="control-help" style={{ color: isKeyValid ? '#27ae60' : '#f39c12' }}>
+            {isKeyValid ? '✅ Clé chargée' : '⚠️ Clé non sauvegardée'}
           </small>
         )}
       </div>
@@ -195,7 +199,7 @@ const Controls = ({
         <button 
           className="btn-primary" 
           onClick={onFetch}
-          disabled={loading || !apiKey}
+          disabled={loading || !isKeyValid}
         >
           {loading ? (
             <PacmanLoader size={20} color="white" />
@@ -205,9 +209,9 @@ const Controls = ({
             </>
           )}
         </button>
-        {!apiKey && (
+        {!isKeyValid && (
           <small className="control-help" style={{ color: '#e74c3c' }}>
-            ⚠️ Veuillez entrer une clé API
+            ⚠️ Veuillez entrer et sauvegarder votre clé API (bouton 💾)
           </small>
         )}
       </div>
@@ -217,10 +221,10 @@ const Controls = ({
           <span className="icon">📥</span> Exporter
         </label>
         <div className="export-group">
-          <button className="btn-secondary" onClick={() => onExport('csv')} disabled={!apiKey}>
+          <button className="btn-secondary" onClick={() => onExport('csv')} disabled={!isKeyValid}>
             📊 CSV
           </button>
-          <button className="btn-secondary" onClick={() => onExport('geojson')} disabled={!apiKey}>
+          <button className="btn-secondary" onClick={() => onExport('geojson')} disabled={!isKeyValid}>
             🗺️ GeoJSON
           </button>
         </div>
