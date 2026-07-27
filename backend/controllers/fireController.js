@@ -10,11 +10,19 @@ const SOURCES = {
   VIIRS_SNPP_SP: 'VIIRS Suomi-NPP SP'
 };
 
+// Bounding box France métropolitaine (pour filtrer)
+const FRANCE_BBOX = {
+  west: -5.5,
+  south: 41.2,
+  east: 9.5,
+  north: 51.5
+};
+
 // Configuration par défaut
 const DEFAULT_CONFIG = {
   source: 'VIIRS_SNPP_NRT',
   days: 3,
-  area: 'world', // Utiliser 'world' par défaut
+  area: 'world',
   format: 'csv'
 };
 
@@ -46,14 +54,12 @@ exports.getFires = async (req, res) => {
 
     // Format 1: Avec date spécifique (si startDate est fourni)
     if (startDate) {
-      // Format: /api/area/csv/{KEY}/{SOURCE}/world/1/{DATE}
       url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/1/${startDate}`;
       usedFormat = 'CSV avec date (world)';
     } 
     // Format 2: Avec nombre de jours (par défaut)
     else {
       const effectiveDays = Math.min(Math.max(parseInt(days) || 3, 1), 5);
-      // Format: /api/area/csv/{KEY}/{SOURCE}/world/{DAYS}
       url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/${effectiveDays}`;
       usedFormat = `CSV avec ${effectiveDays} jours (world)`;
     }
@@ -70,8 +76,7 @@ exports.getFires = async (req, res) => {
       if (response.status === 401 || response.status === 403) {
         return res.status(401).json({ 
           error: '❌ Clé API FIRMS invalide ou expirée',
-          details: 'Vérifiez votre clé sur https://firms.modaps.eosdis.nasa.gov/mapkey/',
-          solution: 'Générez une nouvelle clé si nécessaire'
+          details: 'Vérifiez votre clé sur https://firms.modaps.eosdis.nasa.gov/mapkey/'
         });
       }
       
@@ -91,37 +96,46 @@ exports.getFires = async (req, res) => {
     const csvText = await response.text();
     
     // Parser le CSV en JSON
-    const fires = parseCSVToJSON(csvText);
+    const allFires = parseCSVToJSON(csvText);
+    
+    console.log(`📊 ${allFires.length} feux récupérés dans le monde`);
+
+    // Filtrer les feux pour ne garder que ceux en France métropolitaine
+    const frenchFires = filterFiresByBbox(allFires, FRANCE_BBOX);
+    
+    console.log(`🇫🇷 ${frenchFires.length} feux en France métropolitaine`);
 
     // Filtrer par plage de dates si nécessaire
-    let filteredFires = fires;
+    let filteredFires = frenchFires;
     if (startDate && endDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       
-      filteredFires = fires.filter(f => {
+      filteredFires = frenchFires.filter(f => {
         if (!f.acq_date) return false;
         const parts = f.acq_date.split('-');
         const date = new Date(parts[0], parts[1]-1, parts[2]);
         date.setHours(12, 0, 0, 0);
         return date >= start && date <= end;
       });
+      
+      console.log(`📅 ${filteredFires.length} feux dans la plage de dates`);
     }
-
-    console.log(`✅ ${filteredFires.length} feux récupérés (sur ${fires.length} au total)`);
 
     res.json({
       success: true,
       source,
       count: filteredFires.length,
-      total: fires.length,
+      total_world: allFires.length,
+      total_france: frenchFires.length,
       data: filteredFires,
       timestamp: new Date().toISOString(),
       url: url.replace(mapKey, '***'),
       format: usedFormat,
-      area: 'world'
+      area: 'world (filtré France)',
+      bbox: FRANCE_BBOX
     });
 
   } catch (error) {
@@ -173,6 +187,16 @@ function parseCSVToJSON(csvText) {
     });
   }
   return results;
+}
+
+// Fonction pour filtrer les feux par bounding box
+function filterFiresByBbox(fires, bbox) {
+  const { west, south, east, north } = bbox;
+  return fires.filter(fire => {
+    const lat = fire.latitude;
+    const lon = fire.longitude;
+    return lat >= south && lat <= north && lon >= west && lon <= east;
+  });
 }
 
 exports.getSources = (req, res) => {
