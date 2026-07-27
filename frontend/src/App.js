@@ -6,7 +6,7 @@ import Controls from './components/Controls/Controls';
 import FireChart from './components/Charts/FireChart';
 import Alerts from './components/Alerts/Alerts';
 import { getFires, getSources, exportCSV, exportGeoJSON } from './services/api';
-import { fetchWindData } from './services/windService';
+import { fetchWindData, fetchWindDataSimple } from './services/windService';
 
 function App() {
   const [fires, setFires] = useState([]);
@@ -47,19 +47,47 @@ function App() {
   }, [darkMode]);
 
   // Charger les données vent
-  const loadWindData = async () => {
+  const loadWindData = async (retryCount = 0) => {
     if (windLoading) return;
     
     setWindLoading(true);
+    const toastId = toast.loading('🌬️ Chargement des données vent...');
+    
     try {
-      toast.loading('🌬️ Chargement des données vent...', { id: 'wind' });
-      const data = await fetchWindData();
-      setWindData(data);
-      toast.success('🌬️ Données vent chargées', { id: 'wind' });
+      let data;
+      try {
+        // Essayer d'abord avec la grille complète
+        data = await fetchWindData();
+      } catch (error) {
+        console.warn('⚠️ Échec de la grille complète, tentative avec le mode simple...');
+        // Fallback : utiliser le mode simple
+        data = await fetchWindDataSimple();
+      }
+      
+      if (data) {
+        setWindData(data);
+        toast.success('🌬️ Données vent chargées', { id: toastId });
+      } else {
+        throw new Error('Aucune donnée reçue');
+      }
     } catch (error) {
       console.error('❌ Erreur vent:', error);
-      toast.error('❌ Erreur lors du chargement des données vent', { id: 'wind' });
+      toast.error('❌ Erreur lors du chargement des données vent', { id: toastId });
       setShowWind(false);
+      
+      // Réessayer avec le mode simple si ce n'est pas déjà fait
+      if (retryCount === 0) {
+        try {
+          toast.loading('🔄 Tentative de récupération simplifiée...', { id: toastId });
+          const simpleData = await fetchWindDataSimple();
+          if (simpleData) {
+            setWindData(simpleData);
+            toast.success('🌬️ Données vent chargées (mode simplifié)', { id: toastId });
+          }
+        } catch (retryError) {
+          toast.error('❌ Impossible de charger les données vent', { id: toastId });
+        }
+      }
     } finally {
       setWindLoading(false);
     }
