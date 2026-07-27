@@ -33,9 +33,13 @@ Application web complète pour visualiser :
 ## 🚀 Installation
 
 1. Clonez le dépôt.
-2. Obtenez une clé API FIRMS gratuite sur [https://firms.modaps.eosdis.nasa.gov/mapkey/](https://firms.modaps.eosdis.nasa.gov/api/map_key).
-3. Ouvrez `index.html` dans votre navigateur.
-4. Saisissez votre clé API, puis utilisez les boutons SDIS pour charger les casernes.
+   ```bash
+   git clone https://github.com/sebastienbats/FireMaps.git
+   cd FireMaps
+   ```
+3. Obtenez une clé API FIRMS gratuite sur [https://firms.modaps.eosdis.nasa.gov/mapkey/](https://firms.modaps.eosdis.nasa.gov/api/map_key).
+4. Ouvrez `index.html` dans votre navigateur.
+5. Saisissez votre clé API, puis utilisez les boutons SDIS pour charger les casernes.
 
 ## 📦 Structure
 
