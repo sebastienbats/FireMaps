@@ -21,6 +21,9 @@ const Controls = ({
   setShowHeatmap,
   showSdis,
   setShowSdis,
+  showWind = false,
+  setShowWind,
+  windLoading = false,
   darkMode
 }) => {
   const [highConfidence, setHighConfidence] = useState(true);
@@ -29,10 +32,12 @@ const Controls = ({
   const [apiKeyStatus, setApiKeyStatus] = useState('');
   const [isKeyValid, setIsKeyValid] = useState(false);
 
+  // Gérer le changement des filtres
   const handleFilterChange = () => {
     onFilterChange({ highConfidence, frp });
   };
 
+  // Sauvegarder la clé API
   const handleSaveApiKey = () => {
     const trimmedKey = apiKey.trim();
     if (trimmedKey) {
@@ -55,6 +60,7 @@ const Controls = ({
     }
   };
 
+  // Vérifier la clé au chargement
   useEffect(() => {
     const savedKey = localStorage.getItem('firms_map_key');
     if (savedKey && savedKey.trim() && savedKey.trim().length >= 32) {
@@ -62,8 +68,22 @@ const Controls = ({
     }
   }, []);
 
+  // Synchroniser l'état de la clé avec le localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newKey = localStorage.getItem('firms_map_key') || '';
+      setApiKey(newKey);
+      setIsKeyValid(newKey.length >= 32);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   return (
     <div className="controls">
+      {/* ============================================================
+          CLAÉ API FIRMS
+          ============================================================ */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🔑</span> Clé API FIRMS
@@ -99,6 +119,9 @@ const Controls = ({
         )}
       </div>
 
+      {/* ============================================================
+          SOURCE SATELLITE
+          ============================================================ */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🛰️</span> Source satellite
@@ -109,6 +132,7 @@ const Controls = ({
           onChange={(option) => setSelectedSource(option.value)}
           className="react-select"
           classNamePrefix="react-select"
+          isDisabled={loading}
           theme={(theme) => ({
             ...theme,
             colors: {
@@ -122,6 +146,9 @@ const Controls = ({
         />
       </div>
 
+      {/* ============================================================
+          PÉRIODE
+          ============================================================ */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">📅</span> Période
@@ -134,6 +161,7 @@ const Controls = ({
             min="1" 
             max="5"
             className="input-small"
+            disabled={loading}
           />
           <span className="input-suffix">jours</span>
         </div>
@@ -144,6 +172,7 @@ const Controls = ({
             value={startDate} 
             onChange={(e) => setStartDate(e.target.value)}
             className="input-date"
+            disabled={loading}
           />
           <label className="control-label-small">Au</label>
           <input 
@@ -151,11 +180,15 @@ const Controls = ({
             value={endDate} 
             onChange={(e) => setEndDate(e.target.value)}
             className="input-date"
+            disabled={loading}
           />
         </div>
         <small className="control-help">Laissez vide pour la période glissante</small>
       </div>
 
+      {/* ============================================================
+          FILTRES
+          ============================================================ */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🔍</span> Filtres
@@ -169,6 +202,7 @@ const Controls = ({
                 setHighConfidence(e.target.checked);
                 setTimeout(handleFilterChange, 0);
               }}
+              disabled={loading}
             />
             Confiance élevée
           </label>
@@ -180,6 +214,7 @@ const Controls = ({
                 setFrp(e.target.checked);
                 setTimeout(handleFilterChange, 0);
               }}
+              disabled={loading}
             />
             FRP &gt; 50
           </label>
@@ -188,6 +223,7 @@ const Controls = ({
               type="checkbox" 
               checked={showHeatmap} 
               onChange={(e) => setShowHeatmap(e.target.checked)}
+              disabled={loading}
             />
             Heatmap
           </label>
@@ -196,12 +232,25 @@ const Controls = ({
               type="checkbox" 
               checked={showSdis} 
               onChange={(e) => setShowSdis(e.target.checked)}
+              disabled={loading}
             />
             SDIS
+          </label>
+          <label className="filter-label">
+            <input 
+              type="checkbox" 
+              checked={showWind} 
+              onChange={(e) => setShowWind(e.target.checked)}
+              disabled={loading || windLoading}
+            />
+            Vent {windLoading && <span className="spinner-small">🌀</span>}
           </label>
         </div>
       </div>
 
+      {/* ============================================================
+          BOUTON RAFRAÎCHIR
+          ============================================================ */}
       <div className="control-group">
         <button 
           className="btn-primary" 
@@ -221,20 +270,37 @@ const Controls = ({
             ⚠️ Veuillez entrer et sauvegarder votre clé API (bouton 💾)
           </small>
         )}
+        {isKeyValid && !loading && (
+          <small className="control-help" style={{ color: '#27ae60' }}>
+            ✅ Prêt pour la recherche
+          </small>
+        )}
       </div>
 
+      {/* ============================================================
+          EXPORT
+          ============================================================ */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">📥</span> Exporter
         </label>
         <div className="export-group">
-          <button className="btn-secondary" onClick={() => onExport('csv')} disabled={!isKeyValid}>
+          <button 
+            className="btn-secondary" 
+            onClick={() => onExport('csv')} 
+            disabled={!isKeyValid || loading}
+          >
             📊 CSV
           </button>
-          <button className="btn-secondary" onClick={() => onExport('geojson')} disabled={!isKeyValid}>
+          <button 
+            className="btn-secondary" 
+            onClick={() => onExport('geojson')} 
+            disabled={!isKeyValid || loading}
+          >
             🗺️ GeoJSON
           </button>
         </div>
+        <small className="control-help">Exporte les données filtrées actuellement affichées</small>
       </div>
     </div>
   );
