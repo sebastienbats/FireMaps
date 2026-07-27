@@ -51,7 +51,7 @@ Application web complète pour visualiser :
 
 ## 📦 Structure
 ```text
-firms-app/
+FireMaps/
 ├── backend/
 │   ├── package.json
 │   ├── server.js
