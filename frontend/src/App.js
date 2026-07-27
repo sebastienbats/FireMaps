@@ -6,7 +6,7 @@ import Controls from './components/Controls/Controls';
 import FireChart from './components/Charts/FireChart';
 import Alerts from './components/Alerts/Alerts';
 import { getFires, getSources, exportCSV, exportGeoJSON } from './services/api';
-import { fetchWindData, fetchWindDataSimple } from './services/windService';
+import { fetchWindData, fetchWindDataSimple, getFallbackWindData } from './services/windService';
 
 function App() {
   const [fires, setFires] = useState([]);
@@ -62,8 +62,13 @@ function App() {
       data = await fetchWindData();
       
       if (!data) {
-        console.warn('⚠️ Échec de la grille complète, tentative avec le mode simplifié...');
+        console.warn('⚠️ Échec de la récupération, utilisation du mode simple...');
         data = await fetchWindDataSimple();
+      }
+      
+      if (!data) {
+        console.warn('⚠️ Échec du mode simple, utilisation des données de fallback...');
+        data = getFallbackWindData();
       }
       
       if (data) {
@@ -247,14 +252,27 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: darkMode ? '#1f2937' : '#ffffff',
+            color: darkMode ? '#e5e7eb' : '#1f2937',
+          },
+        }}
+      />
       
       <header className="app-header">
-        <h1><span className="fire-icon">🔥</span> Feux & Vents & SDIS</h1>
+        <h1>
+          <span className="fire-icon">🔥</span> 
+          Feux & Vents & SDIS
+        </h1>
         <div className="header-controls">
           <button 
             onClick={() => setDarkMode(!darkMode)}
             className="dark-toggle"
+            aria-label="Basculer le mode sombre"
           >
             {darkMode ? '☀️' : '🌙'}
           </button>
@@ -362,6 +380,9 @@ function App() {
           Données feux : <a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA FIRMS</a> • 
           Données vent : <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> • 
           Données SDIS : <a href="https://data.gouv.fr/" target="_blank" rel="noopener noreferrer">data.gouv.fr</a>
+        </p>
+        <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '2px' }}>
+          Version 1.0.0 • {new Date().getFullYear()}
         </p>
       </footer>
     </div>
