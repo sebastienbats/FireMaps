@@ -14,6 +14,8 @@ api.interceptors.request.use(
   (config) => {
     // Récupérer la clé API du localStorage
     const apiKey = localStorage.getItem('firms_map_key');
+    console.log('🔑 Clé API récupérée:', apiKey ? `${apiKey.substring(0, 8)}...` : 'non trouvée');
+    
     if (apiKey) {
       // Ajouter la clé comme paramètre de requête
       config.params = {
@@ -28,13 +30,29 @@ api.interceptors.request.use(
   }
 );
 
+// Intercepteur pour gérer les erreurs
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error('❌ Erreur 401 - Clé API invalide');
+      // Ne pas effacer automatiquement la clé, mais afficher un message
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const getFires = async (params) => {
   try {
+    console.log('📡 Requête FIRMS avec params:', { ...params, apiKey: '***' });
     const response = await api.get('/fires', { params });
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
-      throw new Error('Clé API FIRMS invalide ou manquante. Vérifiez votre clé dans les paramètres.');
+      throw new Error('Clé API FIRMS invalide. Vérifiez que vous avez entré une clé valide dans les paramètres.');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('Clé API FIRMS expirée ou quota dépassé. Obtenez une nouvelle clé sur firms.modaps.eosdis.nasa.gov');
     }
     throw new Error(error.response?.data?.error || 'Erreur lors de la récupération des feux');
   }
