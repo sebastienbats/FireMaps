@@ -1,0 +1,195 @@
+import React, { useState } from 'react';
+import Select from 'react-select';
+import { PacmanLoader } from 'react-spinners';
+import './Controls.css';
+
+const Controls = ({
+  sources,
+  selectedSource,
+  setSelectedSource,
+  dayRange,
+  setDayRange,
+  startDate,
+  setStartDate,
+  endDate,
+  setEndDate,
+  onFetch,
+  onFilterChange,
+  onExport,
+  loading,
+  showHeatmap,
+  setShowHeatmap,
+  showSdis,
+  setShowSdis,
+  darkMode
+}) => {
+  const [highConfidence, setHighConfidence] = useState(true);
+  const [frp, setFrp] = useState(false);
+
+  const handleFilterChange = () => {
+    onFilterChange({ highConfidence, frp });
+  };
+
+  return (
+    <div className="controls">
+      <div className="control-group">
+        <label className="control-label">
+          <span className="icon">🔑</span> Clé API FIRMS
+        </label>
+        <div className="control-input-group">
+          <input 
+            type="password" 
+            placeholder="MAP_KEY"
+            className="api-input"
+            onChange={(e) => localStorage.setItem('firms_map_key', e.target.value)}
+            defaultValue={localStorage.getItem('firms_map_key') || ''}
+          />
+          <button className="btn-secondary" onClick={() => {
+            const key = document.querySelector('.api-input').value;
+            if (key) localStorage.setItem('firms_map_key', key);
+          }}>
+            💾
+          </button>
+        </div>
+        <small className="control-help">
+          Obtenez une clé sur <a href="https://firms.modaps.eosdis.nasa.gov/mapkey/" target="_blank" rel="noopener noreferrer">firms.modaps.eosdis.nasa.gov</a>
+        </small>
+      </div>
+
+      <div className="control-group">
+        <label className="control-label">
+          <span className="icon">🛰️</span> Source satellite
+        </label>
+        <Select
+          options={sources}
+          value={sources.find(s => s.value === selectedSource)}
+          onChange={(option) => setSelectedSource(option.value)}
+          className="react-select"
+          classNamePrefix="react-select"
+          theme={(theme) => ({
+            ...theme,
+            colors: {
+              ...theme.colors,
+              primary: '#e67e22',
+              primary75: '#f39c12',
+              primary50: '#f5b041',
+              primary25: '#fdebd0',
+            }
+          })}
+        />
+      </div>
+
+      <div className="control-group">
+        <label className="control-label">
+          <span className="icon">📅</span> Période
+        </label>
+        <div className="control-row">
+          <input 
+            type="number" 
+            value={dayRange} 
+            onChange={(e) => setDayRange(Math.min(Math.max(e.target.value, 1), 5))}
+            min="1" 
+            max="5"
+            className="input-small"
+          />
+          <span className="input-suffix">jours</span>
+        </div>
+        <div className="control-row">
+          <label className="control-label-small">Du</label>
+          <input 
+            type="date" 
+            value={startDate} 
+            onChange={(e) => setStartDate(e.target.value)}
+            className="input-date"
+          />
+          <label className="control-label-small">Au</label>
+          <input 
+            type="date" 
+            value={endDate} 
+            onChange={(e) => setEndDate(e.target.value)}
+            className="input-date"
+          />
+        </div>
+        <small className="control-help">Laissez vide pour la période glissante</small>
+      </div>
+
+      <div className="control-group">
+        <label className="control-label">
+          <span className="icon">🔍</span> Filtres
+        </label>
+        <div className="filter-group">
+          <label className="filter-label">
+            <input 
+              type="checkbox" 
+              checked={highConfidence} 
+              onChange={(e) => {
+                setHighConfidence(e.target.checked);
+                setTimeout(handleFilterChange, 0);
+              }}
+            />
+            Confiance élevée
+          </label>
+          <label className="filter-label">
+            <input 
+              type="checkbox" 
+              checked={frp} 
+              onChange={(e) => {
+                setFrp(e.target.checked);
+                setTimeout(handleFilterChange, 0);
+              }}
+            />
+            FRP &gt; 50
+          </label>
+          <label className="filter-label">
+            <input 
+              type="checkbox" 
+              checked={showHeatmap} 
+              onChange={(e) => setShowHeatmap(e.target.checked)}
+            />
+            Heatmap
+          </label>
+          <label className="filter-label">
+            <input 
+              type="checkbox" 
+              checked={showSdis} 
+              onChange={(e) => setShowSdis(e.target.checked)}
+            />
+            SDIS
+          </label>
+        </div>
+      </div>
+
+      <div className="control-group">
+        <button 
+          className="btn-primary" 
+          onClick={onFetch}
+          disabled={loading}
+        >
+          {loading ? (
+            <PacmanLoader size={20} color="white" />
+          ) : (
+            <>
+              <span className="icon">🔄</span> Rafraîchir
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="control-group">
+        <label className="control-label">
+          <span className="icon">📥</span> Exporter
+        </label>
+        <div className="export-group">
+          <button className="btn-secondary" onClick={() => onExport('csv')}>
+            📊 CSV
+          </button>
+          <button className="btn-secondary" onClick={() => onExport('geojson')}>
+            🗺️ GeoJSON
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Controls;
