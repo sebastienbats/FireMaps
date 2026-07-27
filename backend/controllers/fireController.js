@@ -10,19 +10,19 @@ const SOURCES = {
   VIIRS_SNPP_SP: 'VIIRS Suomi-NPP SP'
 };
 
-// Bounding box France métropolitaine
-const BBOX = {
-  west: -5.5,
-  south: 41.2,
-  east: 9.5,
-  north: 51.5
+// Configuration par défaut
+const DEFAULT_CONFIG = {
+  source: 'VIIRS_SNPP_NRT',
+  days: 3,
+  area: 'world', // Utiliser 'world' par défaut
+  format: 'csv'
 };
 
 exports.getFires = async (req, res) => {
   try {
     const { 
-      source = 'VIIRS_SNPP_NRT', 
-      days = 3, 
+      source = DEFAULT_CONFIG.source, 
+      days = DEFAULT_CONFIG.days, 
       startDate, 
       endDate,
       apiKey
@@ -38,28 +38,24 @@ exports.getFires = async (req, res) => {
     }
 
     // Vérifier la longueur de la clé
-    console.log(`🔑 Longueur de la clé: ${mapKey.length} caractères`);
-    console.log(`🔑 Début de la clé: ${mapKey.substring(0, 8)}...`);
+    console.log(`🔑 Clé API: ${mapKey.substring(0, 8)}... (${mapKey.length} caractères)`);
 
-    // Essayer différents formats d'URL
+    // Construire l'URL avec le format qui fonctionne
     let url;
     let usedFormat = '';
 
-    // Format 1: Avec date (si startDate est fourni)
+    // Format 1: Avec date spécifique (si startDate est fourni)
     if (startDate) {
-      // Essayer avec bounding box France
-      const area = `${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
-      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/1/${startDate}`;
-      usedFormat = 'CSV avec date et bbox';
+      // Format: /api/area/csv/{KEY}/{SOURCE}/world/1/{DATE}
+      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/1/${startDate}`;
+      usedFormat = 'CSV avec date (world)';
     } 
-    // Format 2: Sans date, avec jours
+    // Format 2: Avec nombre de jours (par défaut)
     else {
       const effectiveDays = Math.min(Math.max(parseInt(days) || 3, 1), 5);
-      
-      // Essayer avec bounding box France
-      const area = `${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
-      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/${effectiveDays}`;
-      usedFormat = 'CSV avec jours et bbox';
+      // Format: /api/area/csv/{KEY}/{SOURCE}/world/{DAYS}
+      url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/${effectiveDays}`;
+      usedFormat = `CSV avec ${effectiveDays} jours (world)`;
     }
 
     console.log(`📡 Format utilisé: ${usedFormat}`);
@@ -67,66 +63,27 @@ exports.getFires = async (req, res) => {
 
     const response = await fetch(url);
     
-    // Si la requête échoue avec bbox, essayer avec 'world'
-    if (response.status === 400 || response.status === 401) {
-      console.log('⚠️ Requête avec bbox échouée, tentative avec "world"...');
-      
-      let fallbackUrl;
-      if (startDate) {
-        fallbackUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/1/${startDate}`;
-      } else {
-        const effectiveDays = Math.min(Math.max(parseInt(days) || 3, 1), 5);
-        fallbackUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/world/${effectiveDays}`;
-      }
-      
-      console.log(`🔗 Fallback URL: ${fallbackUrl.replace(mapKey, '***')}`);
-      
-      const fallbackResponse = await fetch(fallbackUrl);
-      
-      if (!fallbackResponse.ok) {
-        const errorText = await fallbackResponse.text();
-        console.error(`❌ Erreur FIRMS (${fallbackResponse.status}):`, errorText);
-        
-        if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
-          return res.status(401).json({ 
-            error: 'Clé API FIRMS invalide ou expirée. Vérifiez que vous utilisez une clé valide sur firms.modaps.eosdis.nasa.gov',
-            details: 'La clé doit être activée pour l\'API FIRMS. Obtenez une nouvelle clé si nécessaire.'
-          });
-        }
-        
-        return res.status(fallbackResponse.status).json({ 
-          error: `Erreur FIRMS: ${errorText}` 
-        });
-      }
-      
-      // Utiliser la réponse fallback
-      const csvText = await fallbackResponse.text();
-      const fires = parseCSVToJSON(csvText);
-      
-      return res.json({
-        success: true,
-        source,
-        count: fires.length,
-        data: fires,
-        timestamp: new Date().toISOString(),
-        url: fallbackUrl.replace(mapKey, '***'),
-        format: 'CSV with world area (fallback)'
-      });
-    }
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Erreur FIRMS (${response.status}):`, errorText);
       
       if (response.status === 401 || response.status === 403) {
         return res.status(401).json({ 
-          error: 'Clé API FIRMS invalide ou expirée. Vérifiez votre clé sur firms.modaps.eosdis.nasa.gov',
-          details: 'La clé doit être activée pour l\'API FIRMS.'
+          error: '❌ Clé API FIRMS invalide ou expirée',
+          details: 'Vérifiez votre clé sur https://firms.modaps.eosdis.nasa.gov/mapkey/',
+          solution: 'Générez une nouvelle clé si nécessaire'
+        });
+      }
+      
+      if (response.status === 429) {
+        return res.status(429).json({ 
+          error: '⏳ Trop de requêtes vers l\'API FIRMS',
+          details: 'Attendez 10 minutes avant de réessayer'
         });
       }
       
       return res.status(response.status).json({ 
-        error: `Erreur FIRMS: ${errorText}` 
+        error: `Erreur FIRMS (${response.status}): ${errorText}` 
       });
     }
 
@@ -136,7 +93,7 @@ exports.getFires = async (req, res) => {
     // Parser le CSV en JSON
     const fires = parseCSVToJSON(csvText);
 
-    // Filtrer par date si nécessaire
+    // Filtrer par plage de dates si nécessaire
     let filteredFires = fires;
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -153,19 +110,26 @@ exports.getFires = async (req, res) => {
       });
     }
 
+    console.log(`✅ ${filteredFires.length} feux récupérés (sur ${fires.length} au total)`);
+
     res.json({
       success: true,
       source,
       count: filteredFires.length,
+      total: fires.length,
       data: filteredFires,
       timestamp: new Date().toISOString(),
       url: url.replace(mapKey, '***'),
-      format: usedFormat
+      format: usedFormat,
+      area: 'world'
     });
 
   } catch (error) {
     console.error('❌ Erreur getFires:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des données: ' + error.message });
+    res.status(500).json({ 
+      error: 'Erreur lors de la récupération des données',
+      details: error.message 
+    });
   }
 };
 
@@ -203,7 +167,9 @@ function parseCSVToJSON(csvText) {
       type: entry.type || '',
       scan: parseFloat(entry.scan) || 0,
       track: parseFloat(entry.track) || 0,
-      satellite: entry.satellite || ''
+      satellite: entry.satellite || '',
+      instrument: entry.instrument || '',
+      version: entry.version || ''
     });
   }
   return results;
