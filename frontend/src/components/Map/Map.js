@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet-heat';
+import 'leaflet.heat';
 import './Map.css';
 
 const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
@@ -36,11 +36,7 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
   // Appliquer le dark mode
   useEffect(() => {
     if (mapRef.current) {
-      const tileLayer = mapRef.current._layers[Object.keys(mapRef.current._layers)[0]];
-      if (tileLayer && tileLayer._url) {
-        // Le dark mode est appliqué via CSS filter
-        mapRef.current.invalidateSize();
-      }
+      mapRef.current.invalidateSize();
     }
   }, [darkMode]);
 
@@ -117,19 +113,24 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
     }
 
     if (showHeatmap && fires && fires.length > 0) {
-      const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
-      heatmapRef.current = L.heatLayer(points, {
-        radius: 25,
-        blur: 15,
-        maxZoom: 10,
-        gradient: {
-          0.4: 'blue',
-          0.6: 'cyan',
-          0.7: 'lime',
-          0.8: 'yellow',
-          1.0: 'red'
-        }
-      }).addTo(mapRef.current);
+      // Vérifier que L.heatLayer existe
+      if (L.heatLayer) {
+        const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
+        heatmapRef.current = L.heatLayer(points, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 10,
+          gradient: {
+            0.4: 'blue',
+            0.6: 'cyan',
+            0.7: 'lime',
+            0.8: 'yellow',
+            1.0: 'red'
+          }
+        }).addTo(mapRef.current);
+      } else {
+        console.warn('L.heatLayer n\'est pas disponible. Vérifiez l\'import de leaflet.heat');
+      }
     }
   }, [showHeatmap, fires]);
 
