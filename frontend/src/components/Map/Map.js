@@ -2,8 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 
-// Déclaration pour que React reconnaisse L.heatLayer
-// La bibliothèque est chargée via CDN dans index.html
+// Vérifier que leaflet.heat est chargé
+const isHeatLayerAvailable = () => {
+  return typeof L.heatLayer === 'function';
+};
+
 const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
   const mapRef = useRef(null);
   const markersRef = useRef(null);
@@ -13,6 +16,8 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
   useEffect(() => {
     // Initialiser la carte
     if (!mapRef.current) {
+      console.log('🗺️ Initialisation de la carte...');
+      
       mapRef.current = L.map('map', {
         center: [46.6, 2.2],
         zoom: 6,
@@ -24,6 +29,8 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
       }).addTo(mapRef.current);
 
       markersRef.current = L.layerGroup().addTo(mapRef.current);
+      
+      console.log('✅ Carte initialisée');
     }
 
     return () => {
@@ -47,8 +54,9 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
 
     markersRef.current.clearLayers();
 
-    // Ajouter les marqueurs de feux
     if (fires && fires.length > 0) {
+      console.log(`📍 Ajout de ${fires.length} marqueurs de feux`);
+      
       const fireIcon = L.divIcon({
         html: '<div class="fire-marker">🔥</div>',
         className: 'fire-marker-container',
@@ -114,8 +122,10 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
     }
 
     if (showHeatmap && fires && fires.length > 0) {
-      // Vérifier que L.heatLayer est disponible (chargé via CDN)
-      if (typeof L.heatLayer === 'function') {
+      // Vérifier que L.heatLayer est disponible
+      if (isHeatLayerAvailable()) {
+        console.log(`🔥 Création de la heatmap avec ${fires.length} points`);
+        
         const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
         heatmapRef.current = L.heatLayer(points, {
           radius: 25,
@@ -130,10 +140,47 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
           }
         }).addTo(mapRef.current);
       } else {
-        console.warn('L.heatLayer n\'est pas disponible. Vérifiez le chargement du CDN leaflet.heat');
+        console.warn('⚠️ L.heatLayer n\'est pas disponible. Tentative de chargement...');
+        // Tenter de charger le plugin dynamiquement
+        loadHeatPlugin();
       }
     }
   }, [showHeatmap, fires]);
+
+  // Fonction pour charger le plugin dynamiquement
+  const loadHeatPlugin = () => {
+    if (typeof L.heatLayer === 'function') return;
+    
+    console.log('📦 Tentative de chargement dynamique de leaflet.heat...');
+    
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js';
+    script.onload = () => {
+      console.log('✅ leaflet.heat chargé dynamiquement');
+      // Re-trigger la heatmap
+      if (showHeatmap && fires && fires.length > 0) {
+        const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
+        if (typeof L.heatLayer === 'function') {
+          heatmapRef.current = L.heatLayer(points, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 10,
+            gradient: {
+              0.4: 'blue',
+              0.6: 'cyan',
+              0.7: 'lime',
+              0.8: 'yellow',
+              1.0: 'red'
+            }
+          }).addTo(mapRef.current);
+        }
+      }
+    };
+    script.onerror = () => {
+      console.error('❌ Impossible de charger leaflet.heat');
+    };
+    document.body.appendChild(script);
+  };
 
   // Redimensionner la carte
   useEffect(() => {
