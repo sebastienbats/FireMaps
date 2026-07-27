@@ -20,21 +20,45 @@ const BBOX = {
 
 exports.getFires = async (req, res) => {
   try {
-    const { source = 'VIIRS_SNPP_NRT', days = 3, startDate, endDate } = req.query;
+    const { 
+      source = 'VIIRS_SNPP_NRT', 
+      days = 3, 
+      startDate, 
+      endDate,
+      apiKey // Récupérer la clé API depuis la requête
+    } = req.query;
     
-    const mapKey = process.env.FIRMS_MAP_KEY;
+    // Utiliser la clé fournie ou celle du .env
+    const mapKey = apiKey || process.env.FIRMS_MAP_KEY;
+    
     if (!mapKey) {
-      return res.status(500).json({ error: 'Clé API FIRMS manquante' });
+      return res.status(401).json({ 
+        error: 'Clé API FIRMS manquante. Veuillez la fournir dans les paramètres ou configurer .env' 
+      });
     }
 
     const effectiveDays = (startDate && endDate) ? 5 : Math.min(Math.max(parseInt(days) || 3, 1), 5);
     const area = `${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
     const url = `https://firms.modaps.eosdis.nasa.gov/api/area/json/${mapKey}/${source}/${area}/${effectiveDays}`;
 
+    console.log(`📡 Requête FIRMS: ${source} - ${effectiveDays} jours`);
+    console.log(`🔗 URL: ${url.replace(mapKey, '***')}`);
+
     const response = await fetch(url);
+    
     if (!response.ok) {
-      const error = await response.text();
-      return res.status(response.status).json({ error: `Erreur FIRMS: ${error}` });
+      const errorText = await response.text();
+      console.error(`❌ Erreur FIRMS (${response.status}):`, errorText);
+      
+      if (response.status === 401 || response.status === 403) {
+        return res.status(401).json({ 
+          error: 'Clé API FIRMS invalide ou expirée. Vérifiez votre clé sur firms.modaps.eosdis.nasa.gov' 
+        });
+      }
+      
+      return res.status(response.status).json({ 
+        error: `Erreur FIRMS: ${errorText}` 
+      });
     }
 
     const data = await response.json();
@@ -65,7 +89,7 @@ exports.getFires = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur getFires:', error);
+    console.error('❌ Erreur getFires:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des données' });
   }
 };
