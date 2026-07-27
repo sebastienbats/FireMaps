@@ -1,45 +1,340 @@
+/* ============================================================
+   MAP CONTAINER
+   ============================================================ */
 .map-container {
   width: 100%;
   height: 100%;
   min-height: 400px;
+  position: relative;
+  background: #e5eef5;
+  transition: background 0.3s ease;
 }
 
+/* Dark mode pour le fond de la carte */
+.dark .map-container {
+  background: #1a1a2e;
+}
+
+/* ============================================================
+   FIRE MARKERS
+   ============================================================ */
 .fire-marker {
-  font-size: 20px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  animation: firePulse 2s ease-in-out infinite;
 }
 
 .fire-marker-container {
   background: none;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Dark mode pour la carte */
-.dark .map-container .leaflet-tile-pane {
+/* Animation de pulsation pour les marqueurs */
+@keyframes firePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* Dark mode - ajustement des marqueurs */
+.dark .fire-marker {
+  filter: drop-shadow(0 2px 8px rgba(255, 100, 0, 0.4));
+}
+
+/* ============================================================
+   HEATMAP LAYER
+   ============================================================ */
+.leaflet-heatmap-layer {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+/* ============================================================
+   POPUPS
+   ============================================================ */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px !important;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.2) !important;
+}
+
+.leaflet-popup-content {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.leaflet-popup-content strong {
+  color: #e67e22;
+  font-size: 0.95rem;
+}
+
+.leaflet-popup-content b {
+  color: #2c3e50;
+}
+
+/* Dark mode pour les popups */
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: #2a3a5a !important;
+  color: #eaeaea !important;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .leaflet-popup-content-wrapper a {
+  color: #f39c12 !important;
+}
+
+.dark .leaflet-popup-content b {
+  color: #ecf0f1 !important;
+}
+
+.dark .leaflet-popup-content strong {
+  color: #f39c12 !important;
+}
+
+.dark .leaflet-popup-content-wrapper .leaflet-popup-close-button {
+  color: #eaeaea !important;
+}
+
+/* ============================================================
+   ZOOM CONTROLS
+   ============================================================ */
+.leaflet-control-zoom a {
+  background: white !important;
+  color: #2c3e50 !important;
+  border: 1px solid #ddd !important;
+  transition: background 0.2s, color 0.2s;
+}
+
+.leaflet-control-zoom a:hover {
+  background: #f0f0f0 !important;
+  color: #e67e22 !important;
+}
+
+/* Dark mode pour les contrôles de zoom */
+.dark .leaflet-control-zoom a {
+  background: #2a3a5a !important;
+  color: #eaeaea !important;
+  border-color: #3a4a6a !important;
+}
+
+.dark .leaflet-control-zoom a:hover {
+  background: #3a4a6a !important;
+  color: #f39c12 !important;
+}
+
+/* ============================================================
+   ATTRIBUTION
+   ============================================================ */
+.leaflet-control-attribution {
+  font-size: 0.65rem !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(26, 26, 46, 0.8) !important;
+  color: #adb5bd !important;
+}
+
+.dark .leaflet-control-attribution a {
+  color: #f39c12 !important;
+}
+
+/* ============================================================
+   TOOLTIP
+   ============================================================ */
+.leaflet-tooltip {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 0.75rem !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dark .leaflet-tooltip {
+  background: rgba(42, 58, 90, 0.95) !important;
+  border-color: #3a4a6a !important;
+  color: #eaeaea !important;
+}
+
+/* ============================================================
+   ALERT CIRCLES
+   ============================================================ */
+.alert-circle {
+  animation: alertPulse 2s ease-in-out infinite;
+}
+
+@keyframes alertPulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .map-container {
+    min-height: 300px;
+  }
+  
+  .leaflet-popup-content {
+    font-size: 0.75rem;
+    min-width: 140px;
+  }
+  
+  .fire-marker {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-container {
+    min-height: 250px;
+  }
+  
+  .leaflet-popup-content {
+    font-size: 0.7rem;
+    min-width: 120px;
+  }
+  
+  .fire-marker {
+    font-size: 16px;
+  }
+}
+
+/* ============================================================
+   LOADING OVERLAY (optionnel)
+   ============================================================ */
+.map-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.dark .map-loading {
+  background: rgba(26, 26, 46, 0.7);
+}
+
+.map-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(230, 126, 34, 0.2);
+  border-top-color: #e67e22;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   HEATMAP UNAVAILABLE MESSAGE
+   ============================================================ */
+.heatmap-unavailable {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.dark .heatmap-unavailable {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eaeaea;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ============================================================
+   TILE LAYER DARK MODE (via CSS filter)
+   ============================================================ */
+.dark .leaflet-tile-pane {
   filter: invert(0.9) hue-rotate(180deg);
 }
 
-.dark .map-container .leaflet-popup-content-wrapper,
-.dark .map-container .leaflet-popup-tip {
-  background: #2a3a5a;
-  color: #eaeaea;
+/* Correction des couleurs pour les étiquettes en dark mode */
+.dark .leaflet-tile-pane .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg);
 }
 
-.dark .map-container .leaflet-popup-content-wrapper a {
-  color: #f39c12;
+/* ============================================================
+   SCROLLBAR STYLING (pour les popups avec scroll)
+   ============================================================ */
+.leaflet-popup-content::-webkit-scrollbar {
+  width: 4px;
 }
 
-.dark .map-container .leaflet-control-zoom a {
-  background: #2a3a5a;
-  color: #eaeaea;
-  border-color: #3a4a6a;
+.leaflet-popup-content::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.dark .map-container .leaflet-control-zoom a:hover {
-  background: #3a4a6a;
+.leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #e67e22;
+  border-radius: 2px;
 }
 
-/* Correction pour les marqueurs en dark mode */
-.dark .fire-marker {
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+.dark .leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #f39c12;
+}
+
+/* ============================================================
+   IMPRESSION
+   ============================================================ */
+@media print {
+  .map-container {
+    min-height: 500px;
+    border: 1px solid #ddd;
+  }
+  
+  .fire-marker {
+    filter: none !important;
+    animation: none !important;
+  }
 }
