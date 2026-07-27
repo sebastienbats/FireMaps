@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet.heat';
 import './Map.css';
 
+// Déclaration pour que React reconnaisse L.heatLayer
+// La bibliothèque est chargée via CDN dans index.html
 const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
   const mapRef = useRef(null);
   const markersRef = useRef(null);
@@ -19,7 +20,7 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
       });
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
+        attribution: '© OpenStreetMap contributors'
       }).addTo(mapRef.current);
 
       markersRef.current = L.layerGroup().addTo(mapRef.current);
@@ -36,7 +37,7 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
   // Appliquer le dark mode
   useEffect(() => {
     if (mapRef.current) {
-      mapRef.current.invalidateSize();
+      setTimeout(() => mapRef.current.invalidateSize(), 100);
     }
   }, [darkMode]);
 
@@ -113,8 +114,8 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
     }
 
     if (showHeatmap && fires && fires.length > 0) {
-      // Vérifier que L.heatLayer existe
-      if (L.heatLayer) {
+      // Vérifier que L.heatLayer est disponible (chargé via CDN)
+      if (typeof L.heatLayer === 'function') {
         const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
         heatmapRef.current = L.heatLayer(points, {
           radius: 25,
@@ -129,7 +130,7 @@ const Map = ({ fires, showHeatmap, showSdis, darkMode, alerts }) => {
           }
         }).addTo(mapRef.current);
       } else {
-        console.warn('L.heatLayer n\'est pas disponible. Vérifiez l\'import de leaflet.heat');
+        console.warn('L.heatLayer n\'est pas disponible. Vérifiez le chargement du CDN leaflet.heat');
       }
     }
   }, [showHeatmap, fires]);
