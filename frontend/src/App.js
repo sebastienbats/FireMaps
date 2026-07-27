@@ -5,7 +5,7 @@ import Map from './components/Map/Map';
 import Controls from './components/Controls/Controls';
 import FireChart from './components/Charts/FireChart';
 import Alerts from './components/Alerts/Alerts';
-import { getFires, getSources, exportCSV, exportGeoJSON, listExports } from './services/api';
+import { getFires, getSources, exportCSV, exportGeoJSON } from './services/api';
 
 function App() {
   const [fires, setFires] = useState([]);
@@ -21,6 +21,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [alerts, setAlerts] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [apiKeyError, setApiKeyError] = useState(false);
 
   // Charger les sources au démarrage
   useEffect(() => {
@@ -43,8 +44,18 @@ function App() {
 
   // Charger les feux
   const fetchFires = async () => {
+    // Vérifier la clé API
+    const apiKey = localStorage.getItem('firms_map_key');
+    if (!apiKey || apiKey.trim() === '') {
+      toast.error('⚠️ Veuillez entrer votre clé API FIRMS dans les paramètres');
+      setApiKeyError(true);
+      return;
+    }
+    setApiKeyError(false);
+    
     setLoading(true);
     try {
+      console.log('🔍 Chargement des feux avec source:', selectedSource);
       const data = await getFires({
         source: selectedSource,
         days: dayRange,
@@ -56,7 +67,9 @@ function App() {
       setLastUpdate(data.timestamp);
       toast.success(`${data.count} feux détectés`);
     } catch (error) {
+      console.error('❌ Erreur:', error);
       toast.error(error.message || 'Erreur lors du chargement des feux');
+      setApiKeyError(true);
     } finally {
       setLoading(false);
     }
@@ -95,7 +108,7 @@ function App() {
       // Télécharger le fichier
       window.open(result.downloadUrl, '_blank');
     } catch (error) {
-      toast.error('Erreur lors de l\'export');
+      toast.error(error.message || 'Erreur lors de l\'export');
     }
   };
 
