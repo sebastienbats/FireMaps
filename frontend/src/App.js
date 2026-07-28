@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import './App.css';
 import Map from './components/Map/Map';
@@ -31,7 +31,66 @@ function App() {
   const [wmsLayer, setWmsLayer] = useState(null);
   const [wmsOpacity, setWmsOpacity] = useState(0.6);
 
-  // Sources
+  // Fonction distance (helper)
+  const distance = useCallback((lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c) / 111;
+  }, []);
+
+  // Détection des hotspots (alertes)
+  const detectHotspots = useCallback((fires) => {
+    const RADIUS_DEG = 0.1;
+    const MIN_FIRES = 5;
+    const hotspots = [];
+
+    for (let i = 0; i < fires.length; i++) {
+      let count = 1;
+      for (let j = i + 1; j < fires.length; j++) {
+        const d = distance(
+          fires[i].latitude, fires[i].longitude,
+          fires[j].latitude, fires[j].longitude
+        );
+        if (d < RADIUS_DEG) count++;
+      }
+      if (count >= MIN_FIRES) {
+        hotspots.push({
+          lat: fires[i].latitude,
+          lng: fires[i].longitude,
+          count
+        });
+      }
+    }
+
+    const unique = [];
+    for (const h of hotspots) {
+      let dup = false;
+      for (const u of unique) {
+        if (distance(h.lat, h.lng, u.lat, u.lng) < RADIUS_DEG * 0.5) {
+          dup = true;
+          break;
+        }
+      }
+      if (!dup) unique.push(h);
+    }
+    setAlerts(unique);
+  }, [distance]);
+
+  // Mettre à jour les alertes quand les feux filtrés changent
+  useEffect(() => {
+    if (filteredFires.length > 0) {
+      detectHotspots(filteredFires);
+    } else {
+      setAlerts([]);
+    }
+  }, [filteredFires, detectHotspots]);
+
+  // Charger les sources au démarrage
   useEffect(() => {
     const loadSources = async () => {
       try {
@@ -44,13 +103,13 @@ function App() {
     loadSources();
   }, []);
 
-  // Dark mode
+  // Appliquer le mode sombre
   useEffect(() => {
     document.body.className = darkMode ? 'dark' : '';
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
 
-  // Vent
+  // Charger les données vent
   const loadWindData = async () => {
     if (windLoading) return;
     setWindLoading(true);
@@ -77,7 +136,8 @@ function App() {
     }
   };
 
-  const handleWindToggle = async () => {
+  // Gérer le toggle du vent
+  const handleWindToggle = useCallback(async () => {
     if (showWind) {
       setShowWind(false);
       setWindData(null);
@@ -91,10 +151,10 @@ function App() {
         setShowWind(false);
       }
     }
-  };
+  }, [showWind, windData, windError, loadWindData]);
 
-  // Feux
-  const fetchFires = async () => {
+  // Charger les feux
+  const fetchFires = useCallback(async () => {
     const apiKey = localStorage.getItem('firms_map_key');
     if (!apiKey || apiKey.trim() === '') {
       toast.error('⚠️ Veuillez entrer votre clé API FIRMS dans les paramètres');
@@ -132,10 +192,10 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSource, dayRange, startDate, endDate, showHeatmap]);
 
-  // Filtres
-  const handleFilterChange = (filters) => {
+  // Filtrer les feux
+  const handleFilterChange = useCallback((filters) => {
     let filtered = [...fires];
     if (filters.highConfidence) {
       filtered = filtered.filter(f =>
@@ -146,10 +206,10 @@ function App() {
       filtered = filtered.filter(f => (f.frp || 0) >= 50);
     }
     setFilteredFires(filtered);
-  };
+  }, [fires]);
 
-  // Export
-  const handleExport = async (format) => {
+  // Exporter
+  const handleExport = useCallback(async (format) => {
     if (filteredFires.length === 0) {
       toast.error('Aucune donnée à exporter');
       return;
@@ -163,68 +223,29 @@ function App() {
     } catch (error) {
       toast.error(error.message || 'Erreur lors de l\'export');
     }
-  };
-
-  // Hotspots
-  const detectHotspots = (fires) => {
-    const RADIUS_DEG = 0.1;
-    const MIN_FIRES = 5;
-    const hotspots = [];
-    for (let i = 0; i < fires.length; i++) {
-      let count = 1;
-      for (let j = i + 1; j < fires.length; j++) {
-        const d = distance(
-          fires[i].latitude, fires[i].longitude,
-          fires[j].latitude, fires[j].longitude
-        );
-        if (d < RADIUS_DEG) count++;
-      }
-      if (count >= MIN_FIRES) {
-        hotspots.push({ lat: fires[i].latitude, lng: fires[i].longitude, count });
-      }
-    }
-    const unique = [];
-    for (const h of hotspots) {
-      let dup = false;
-      for (const u of unique) {
-        if (distance(h.lat, h.lng, u.lat, u.lng) < RADIUS_DEG * 0.5) { dup = true; break; }
-      }
-      if (!dup) unique.push(h);
-    }
-    setAlerts(unique);
-  };
-
-  const distance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return (R * c) / 111;
-  };
-
-  useEffect(() => {
-    if (filteredFires.length > 0) {
-      detectHotspots(filteredFires);
-    } else {
-      setAlerts([]);
-    }
   }, [filteredFires]);
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
-      <Toaster position="top-right" toastOptions={{
-        duration: 4000,
-        style: {
-          background: darkMode ? '#1f2937' : '#ffffff',
-          color: darkMode ? '#e5e7eb' : '#1f2937',
-        },
-      }} />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: darkMode ? '#1f2937' : '#ffffff',
+            color: darkMode ? '#e5e7eb' : '#1f2937',
+          },
+        }}
+      />
 
       <header className="app-header">
         <h1><span className="fire-icon">🔥</span> Feux & Vents & Météo & SDIS</h1>
         <div className="header-controls">
-          <button onClick={() => setDarkMode(!darkMode)} className="dark-toggle" aria-label="Basculer le mode sombre">
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="dark-toggle"
+            aria-label="Basculer le mode sombre"
+          >
             {darkMode ? '☀️' : '🌙'}
           </button>
           <span className="header-subtitle">NASA FIRMS • Open‑Meteo • GIBS • SDIS</span>
