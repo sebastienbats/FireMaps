@@ -14,8 +14,8 @@ const WMS_LAYERS = [
   { value: 'relative_humidity_2m', label: '💧 Humidité', type: 'open-meteo' },
   // --- NASA GIBS (WMS) ---
   { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
-  { value: 'lst_day', label: '🌡️ Température surface (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
-  { value: 'lst_night', label: '🌡️ Température surface (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
+  { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
+  { value: 'lst_night', label: '🌡️ LST (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
 ];
 
 const Controls = ({
