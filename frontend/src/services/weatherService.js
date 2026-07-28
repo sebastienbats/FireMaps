@@ -2,7 +2,6 @@ import axios from 'axios';
 
 // Configuration pour les données météo
 const WEATHER_CONFIG = {
-  // Points clés en France métropolitaine
   points: [
     { lat: 48.8566, lon: 2.3522 }, // Paris
     { lat: 45.7640, lon: 4.8357 }, // Lyon
@@ -23,17 +22,16 @@ const WEATHER_CONFIG = {
     { lat: 49.4944, lon: 0.1071 }, // Le Havre
     { lat: 50.7258, lon: 1.6136 }, // Boulogne-sur-Mer
     { lat: 43.5843, lon: 3.0979 }, // Béziers
-    { lat: 48.1364, lon: -1.6455 }, // Rennes (doublon, on garde)
+    { lat: 48.1364, lon: -1.6455 }, // Rennes
   ],
   timeout: 10000
 };
 
 let weatherCache = null;
 let weatherCacheTime = 0;
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+const CACHE_DURATION = 15 * 60 * 1000;
 
 export const fetchWeatherData = async () => {
-  // Vérifier le cache
   if (weatherCache && (Date.now() - weatherCacheTime) < CACHE_DURATION) {
     console.log('☁️ Utilisation des données météo en cache');
     return weatherCache;
@@ -76,7 +74,6 @@ export const fetchWeatherData = async () => {
 
 const fetchWeatherPoint = async (lat, lon) => {
   try {
-    // Utiliser current au lieu de hourly
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m&timezone=Europe/Paris`;
 
     const response = await axios.get(url, { timeout: WEATHER_CONFIG.timeout });
