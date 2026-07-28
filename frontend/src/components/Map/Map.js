@@ -70,29 +70,58 @@ const Map = ({
   const heatmapRef = useRef(null);
   const alertRefs = useRef([]);
   const velocityRef = useRef(null);
-  // Références pour les couches WMS
   const wmsLayersRef = useRef({});
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
 
   // Fonction pour obtenir la couleur selon la température
   const getColorForTemperature = (temp) => {
-    if (temp > 30) return '#e74c3c'; // Rouge
-    if (temp > 25) return '#e67e22'; // Orange
-    if (temp > 20) return '#f1c40f'; // Jaune
-    if (temp > 15) return '#2ecc71'; // Vert
-    if (temp > 10) return '#3498db'; // Bleu
-    if (temp > 5) return '#2980b9'; // Bleu foncé
-    return '#8e44ad'; // Violet
+    if (temp > 30) return '#e74c3c';
+    if (temp > 25) return '#e67e22';
+    if (temp > 20) return '#f1c40f';
+    if (temp > 15) return '#2ecc71';
+    if (temp > 10) return '#3498db';
+    if (temp > 5) return '#2980b9';
+    return '#8e44ad';
   };
 
-  // Fonction pour obtenir l'icône météo
-  const getWeatherIcon = (cloudCover, precipitation) => {
+  // Fonction pour obtenir l'icône météo selon le type de couche
+  const getWeatherIcon = (weatherType, precipitation, cloudCover) => {
+    // Si c'est une couche précipitations
+    if (weatherType === 'precipitation') {
+      if (precipitation > 5) return '⛈️';
+      if (precipitation > 2) return '🌧️';
+      if (precipitation > 0.5) return '🌦️';
+      if (precipitation > 0.1) return '☔';
+      return '☀️';
+    }
+    
+    // Pour les autres couches météo
     if (precipitation > 1) return '🌧️';
     if (precipitation > 0.1) return '🌦️';
     if (cloudCover > 80) return '☁️';
     if (cloudCover > 40) return '⛅';
     return '☀️';
+  };
+
+  // Fonction pour obtenir la couleur selon l'intensité des précipitations
+  const getPrecipitationColor = (precipitation) => {
+    if (precipitation > 5) return '#8e44ad';
+    if (precipitation > 2) return '#e74c3c';
+    if (precipitation > 1) return '#e67e22';
+    if (precipitation > 0.5) return '#f1c40f';
+    if (precipitation > 0.1) return '#3498db';
+    return '#2ecc71';
+  };
+
+  // Fonction pour obtenir la taille du marqueur selon l'intensité
+  const getPrecipitationSize = (precipitation) => {
+    if (precipitation > 5) return 22;
+    if (precipitation > 2) return 18;
+    if (precipitation > 1) return 15;
+    if (precipitation > 0.5) return 12;
+    if (precipitation > 0.1) return 10;
+    return 8;
   };
 
   // Initialisation de la carte
@@ -204,11 +233,10 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Gestion des couches GIBS WMS (multi-couches)
+  // Gestion des couches GIBS WMS
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Supprimer les couches GIBS qui ne sont plus actives
     const activeGibsValues = activeWmsLayers
       .filter(l => {
         const def = WMS_LAYERS.find(d => d.value === l.value);
@@ -225,7 +253,6 @@ const Map = ({
       }
     });
 
-    // Ajouter ou mettre à jour les couches GIBS actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
       if (!fullDef || fullDef.type !== 'gibs') return;
@@ -233,13 +260,11 @@ const Map = ({
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
 
-      // Mettre à jour l'opacité si la couche existe déjà
       if (existingLayer) {
         existingLayer.setOpacity(opacity);
         return;
       }
 
-      // Créer la couche GIBS
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${opacity})`);
       const layer = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
@@ -256,7 +281,6 @@ const Map = ({
       wmsLayersRef.current[layerDef.value] = layer;
     });
 
-    // Nettoyage
     return () => {
       Object.values(wmsLayersRef.current).forEach(layer => {
         if (mapRef.current) {
@@ -267,17 +291,15 @@ const Map = ({
     };
   }, [activeWmsLayers, wmsOpacity]);
 
-  // Gestion de la couche météo (points) - une seule couche météo à la fois
+  // Gestion de la couche météo (points avec icônes)
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Supprimer l'ancienne couche météo
     if (weatherLayerRef.current) {
       mapRef.current.removeLayer(weatherLayerRef.current);
       weatherLayerRef.current = null;
     }
 
-    // Vérifier si une couche météo est active
     const weatherLayer = activeWmsLayers.find(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'weather';
@@ -288,6 +310,8 @@ const Map = ({
     const opacity = weatherLayer.opacity || wmsOpacity;
     const layerDef = WMS_LAYERS.find(l => l.value === weatherLayer.value);
     if (!layerDef) return;
+
+    const isPrecipitationLayer = layerDef.value === 'precipitation';
 
     let isMounted = true;
 
@@ -308,65 +332,112 @@ const Map = ({
           const feelsLike = Math.round(point.apparentTemperature || point.temperature);
           const humidity = Math.round(point.humidity || 0);
           const wind = Math.round(point.windSpeed || 0);
-          const precip = point.precipitation?.toFixed(1) || '0.0';
+          const precip = point.precipitation || 0;
           const cloud = Math.round(point.cloudCover || 0);
-          const icon = getWeatherIcon(point.cloudCover || 0, point.precipitation || 0);
+
+          // Déterminer l'icône selon le type de couche
+          let icon;
+          let color;
+          let size;
+          let showLabel = true;
+
+          if (isPrecipitationLayer) {
+            icon = getWeatherIcon('precipitation', precip, cloud);
+            color = getPrecipitationColor(precip);
+            size = getPrecipitationSize(precip);
+          } else {
+            icon = getWeatherIcon('temperature', precip, cloud);
+            color = getColorForTemperature(point.temperature);
+            size = 14;
+          }
 
           // Popup avec toutes les informations
           const popupContent = `
-            <strong>${icon} ${temp}°C</strong><br/>
+            <strong>${icon} ${isPrecipitationLayer ? precip.toFixed(1) + ' mm' : temp + '°C'}</strong><br/>
             <b>Ressenti:</b> ${feelsLike}°C<br/>
             <b>Humidité:</b> ${humidity}%<br/>
             <b>Vent:</b> ${wind} km/h<br/>
-            <b>Précipitations:</b> ${precip} mm<br/>
+            <b>Précipitations:</b> ${precip.toFixed(1)} mm<br/>
             <b>Couverture:</b> ${cloud}%<br/>
             <hr style="margin:4px 0;border:none;border-top:1px solid #eee;"/>
             <b>Coordonnées:</b><br/>
             Lat: ${point.latitude.toFixed(2)}, Lon: ${point.longitude.toFixed(2)}
           `;
 
-          // Cercle coloré selon la température
-          const marker = L.circleMarker([point.latitude, point.longitude], {
-            radius: 14,
-            fillColor: getColorForTemperature(point.temperature),
-            color: 'rgba(255,255,255,0.6)',
-            weight: 2,
-            opacity: opacity + 0.2,
-            fillOpacity: opacity * 0.85,
-          }).bindPopup(popupContent);
+          if (isPrecipitationLayer) {
+            // Marqueur avec icône météo pour les précipitations
+            const weatherIcon = L.divIcon({
+              html: `<div style="font-size:${size + 6}px;text-shadow:0 1px 4px rgba(0,0,0,0.5);">${icon}</div>`,
+              className: 'weather-icon-marker',
+              iconSize: [size + 10, size + 10],
+              iconAnchor: [(size + 10) / 2, (size + 10) / 2],
+            });
 
-          // Étiquette avec la température
-          const label = L.marker([point.latitude, point.longitude], {
-            icon: L.divIcon({
-              html: `<div style="font-size:11px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:-28px;line-height:1.2;pointer-events:none;">${temp}°</div>`,
-              className: 'weather-label',
-              iconSize: [34, 20],
-              iconAnchor: [17, 10],
-            })
-          });
+            const marker = L.marker([point.latitude, point.longitude], { icon: weatherIcon })
+              .bindPopup(popupContent);
 
-          weatherLayerRef.current.addLayer(marker);
-          weatherLayerRef.current.addLayer(label);
+            weatherLayerRef.current.addLayer(marker);
+
+            // Ajouter une étiquette avec la quantité de précipitations
+            const label = L.marker([point.latitude, point.longitude], {
+              icon: L.divIcon({
+                html: `<div style="font-size:9px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:${size + 8}px;line-height:1.2;pointer-events:none;background:rgba(0,0,0,0.5);padding:0 4px;border-radius:4px;">${precip.toFixed(1)}mm</div>`,
+                className: 'weather-label',
+                iconSize: [40, 16],
+                iconAnchor: [20, 0],
+              })
+            });
+
+            weatherLayerRef.current.addLayer(label);
+          } else {
+            // Pour les autres couches (température, couverture nuageuse)
+            const marker = L.circleMarker([point.latitude, point.longitude], {
+              radius: size,
+              fillColor: color,
+              color: 'rgba(255,255,255,0.6)',
+              weight: 2,
+              opacity: opacity + 0.2,
+              fillOpacity: opacity * 0.85,
+            }).bindPopup(popupContent);
+
+            weatherLayerRef.current.addLayer(marker);
+
+            // Étiquette avec la température
+            const label = L.marker([point.latitude, point.longitude], {
+              icon: L.divIcon({
+                html: `<div style="font-size:11px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:-${size + 14}px;line-height:1.2;pointer-events:none;">${temp}°</div>`,
+                className: 'weather-label',
+                iconSize: [34, 20],
+                iconAnchor: [17, 10],
+              })
+            });
+
+            weatherLayerRef.current.addLayer(marker);
+            weatherLayerRef.current.addLayer(label);
+          }
         });
 
-        console.log(`🌦️ ${data.length} points météo affichés (opacité ${opacity})`);
+        console.log(`🌦️ ${data.length} points météo affichés (${layerDef.value})`);
 
       } catch (error) {
         console.error('❌ Erreur chargement météo:', error);
-        // Fallback avec données simulées
         const fallbackData = getFallbackWeatherData();
         if (fallbackData && fallbackData.length > 0 && isMounted) {
           weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
           fallbackData.forEach(point => {
-            const temp = Math.round(point.temperature);
-            const marker = L.circleMarker([point.latitude, point.longitude], {
-              radius: 12,
-              fillColor: getColorForTemperature(point.temperature),
-              color: 'rgba(255,255,255,0.6)',
-              weight: 1.5,
-              opacity: opacity + 0.2,
-              fillOpacity: opacity * 0.8,
-            }).bindPopup(`🌡️ ${temp}°C (données simulées)`);
+            const precip = point.precipitation || 0;
+            const icon = isPrecipitationLayer 
+              ? getWeatherIcon('precipitation', precip, 0)
+              : getWeatherIcon('temperature', precip, 0);
+            
+            const marker = L.marker([point.latitude, point.longitude], {
+              icon: L.divIcon({
+                html: `<div style="font-size:20px;">${icon}</div>`,
+                className: 'weather-icon-marker',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15],
+              })
+            }).bindPopup(`🌡️ Données simulées<br/>Précipitations: ${precip.toFixed(1)} mm`);
             weatherLayerRef.current.addLayer(marker);
           });
         }
