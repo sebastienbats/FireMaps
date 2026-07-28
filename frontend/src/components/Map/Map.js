@@ -1,16 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
+import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
 
 // Liste des couches WMS disponibles
 const WMS_LAYERS = [
-  { value: 'temperature_2m', label: '🌡️ Température', type: 'open-meteo' },
-  { value: 'precipitation', label: '🌧️ Précipitations', type: 'open-meteo' },
-  { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'open-meteo' },
-  { value: 'pressure_msl', label: '📊 Pression', type: 'open-meteo' },
-  { value: 'wind_speed_10m', label: '💨 Vitesse du vent', type: 'open-meteo' },
-  { value: 'relative_humidity_2m', label: '💧 Humidité', type: 'open-meteo' },
-  // NASA GIBS
+  // --- Open-Meteo (données météo en points) ---
+  { value: 'temperature', label: '🌡️ Température', type: 'weather' },
+  { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
+  { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
+  // --- NASA GIBS (WMS) ---
   { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
   { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
   { value: 'lst_night', label: '🌡️ LST (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
@@ -20,6 +19,7 @@ const WMS_LAYERS = [
 const isHeatLayerAvailable = () => {
   try { return typeof L !== 'undefined' && typeof L.heatLayer === 'function'; } catch(e) { return false; }
 };
+
 const isVelocityLayerAvailable = () => {
   try { return typeof L !== 'undefined' && typeof L.velocityLayer === 'function'; } catch(e) { return false; }
 };
@@ -72,6 +72,28 @@ const Map = ({
   const velocityRef = useRef(null);
   const wmsTileRef = useRef(null);
   const wmsLayerRef = useRef(null);
+  const weatherLayerRef = useRef(null);
+  const weatherDataRef = useRef(null);
+
+  // Fonction pour obtenir la couleur selon la température
+  const getColorForTemperature = (temp) => {
+    if (temp > 30) return '#e74c3c'; // Rouge
+    if (temp > 25) return '#e67e22'; // Orange
+    if (temp > 20) return '#f1c40f'; // Jaune
+    if (temp > 15) return '#2ecc71'; // Vert
+    if (temp > 10) return '#3498db'; // Bleu
+    if (temp > 5) return '#2980b9'; // Bleu foncé
+    return '#8e44ad'; // Violet
+  };
+
+  // Fonction pour obtenir l'icône météo
+  const getWeatherIcon = (cloudCover, precipitation) => {
+    if (precipitation > 1) return '🌧️';
+    if (precipitation > 0.1) return '🌦️';
+    if (cloudCover > 80) return '☁️';
+    if (cloudCover > 40) return '⛅';
+    return '☀️';
+  };
 
   // Initialisation de la carte
   useEffect(() => {
@@ -182,11 +204,112 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Couches WMS (Open-Meteo via tuiles raster)
+  // Couche météo (points avec données Open-Meteo)
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Supprimer les anciennes couches
+    // Supprimer l'ancienne couche météo
+    if (weatherLayerRef.current) {
+      mapRef.current.removeLayer(weatherLayerRef.current);
+      weatherLayerRef.current = null;
+    }
+
+    // Si pas de couche météo ou type différent de 'weather', on sort
+    const layerDef = WMS_LAYERS.find(l => l.value === wmsLayer);
+    if (!wmsLayer || !layerDef || layerDef.type !== 'weather') return;
+
+    const loadWeatherData = async () => {
+      try {
+        let data = await fetchWeatherData();
+        if (!data || data.length === 0) {
+          data = getFallbackWeatherData();
+        }
+        weatherDataRef.current = data;
+
+        if (!data || data.length === 0) return;
+
+        // Créer un groupe pour les marqueurs météo
+        weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
+
+        // Ajouter les marqueurs pour chaque point
+        data.forEach(point => {
+          const temp = Math.round(point.temperature);
+          const feelsLike = Math.round(point.apparentTemperature || point.temperature);
+          const humidity = Math.round(point.humidity || 0);
+          const wind = Math.round(point.windSpeed || 0);
+          const precip = point.precipitation?.toFixed(1) || '0.0';
+          const cloud = Math.round(point.cloudCover || 0);
+          const icon = getWeatherIcon(point.cloudCover || 0, point.precipitation || 0);
+
+          // Popup avec toutes les informations
+          const popupContent = `
+            <strong>${icon} ${temp}°C</strong><br/>
+            <b>Ressenti:</b> ${feelsLike}°C<br/>
+            <b>Humidité:</b> ${humidity}%<br/>
+            <b>Vent:</b> ${wind} km/h<br/>
+            <b>Précipitations:</b> ${precip} mm<br/>
+            <b>Couverture:</b> ${cloud}%<br/>
+            <hr style="margin:4px 0;border:none;border-top:1px solid #eee;"/>
+            <b>Coordonnées:</b><br/>
+            Lat: ${point.latitude.toFixed(2)}, Lon: ${point.longitude.toFixed(2)}
+          `;
+
+          // Cercle coloré selon la température
+          const marker = L.circleMarker([point.latitude, point.longitude], {
+            radius: 14,
+            fillColor: getColorForTemperature(point.temperature),
+            color: 'rgba(255,255,255,0.6)',
+            weight: 2,
+            opacity: wmsOpacity + 0.2,
+            fillOpacity: wmsOpacity * 0.85,
+          }).bindPopup(popupContent);
+
+          // Étiquette avec la température
+          const label = L.marker([point.latitude, point.longitude], {
+            icon: L.divIcon({
+              html: `<div style="font-size:11px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:-28px;line-height:1.2;pointer-events:none;">${temp}°</div>`,
+              className: 'weather-label',
+              iconSize: [34, 20],
+              iconAnchor: [17, 10],
+            })
+          });
+
+          weatherLayerRef.current.addLayer(marker);
+          weatherLayerRef.current.addLayer(label);
+        });
+
+        console.log(`🌦️ ${data.length} points météo affichés`);
+
+      } catch (error) {
+        console.error('❌ Erreur chargement météo:', error);
+        // Fallback avec données simulées
+        const fallbackData = getFallbackWeatherData();
+        if (fallbackData && fallbackData.length > 0) {
+          weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
+          fallbackData.forEach(point => {
+            const temp = Math.round(point.temperature);
+            const marker = L.circleMarker([point.latitude, point.longitude], {
+              radius: 12,
+              fillColor: getColorForTemperature(point.temperature),
+              color: 'rgba(255,255,255,0.6)',
+              weight: 1.5,
+              opacity: wmsOpacity + 0.2,
+              fillOpacity: wmsOpacity * 0.8,
+            }).bindPopup(`🌡️ ${temp}°C (données simulées)`);
+            weatherLayerRef.current.addLayer(marker);
+          });
+        }
+      }
+    };
+
+    loadWeatherData();
+  }, [wmsLayer, wmsOpacity]);
+
+  // Couches WMS GIBS
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Supprimer les anciennes couches GIBS
     if (wmsTileRef.current) {
       mapRef.current.removeLayer(wmsTileRef.current);
       wmsTileRef.current = null;
@@ -196,46 +319,25 @@ const Map = ({
       wmsLayerRef.current = null;
     }
 
-    if (!wmsLayer) return;
-
     const layerDef = WMS_LAYERS.find(l => l.value === wmsLayer);
-    if (!layerDef) return;
+    if (!wmsLayer || !layerDef || layerDef.type !== 'gibs') return;
 
-    if (layerDef.type === 'open-meteo') {
-      // URL correcte des tuiles Open-Meteo
-      const url = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${wmsLayer}.png`;
-      console.log(`🌦️ Ajout de la couche Open-Meteo: ${wmsLayer} (opacité ${wmsOpacity})`);
-      wmsTileRef.current = L.tileLayer(url, {
-        opacity: wmsOpacity,
-        attribution: 'Météo © Open‑Meteo',
-        maxZoom: 8,
-        minZoom: 3,
-        tileSize: 256,
-        crossOrigin: true,
-        // Ajout du paramètre time pour les données les plus récentes
-        time: 'latest'
-      }).addTo(mapRef.current);
-    } else if (layerDef.type === 'gibs') {
-      const gibsLayer = layerDef.layer;
-      console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${wmsOpacity})`);
-      wmsLayerRef.current = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
-        layers: gibsLayer,
-        format: 'image/png',
-        transparent: true,
-        opacity: wmsOpacity,
-        attribution: 'NASA GIBS',
-        crs: L.CRS.EPSG4326,
-        maxZoom: 10,
-        minZoom: 3,
-      }).addTo(mapRef.current);
-    }
+    const gibsLayer = layerDef.layer;
+    console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${wmsOpacity})`);
+    wmsLayerRef.current = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
+      layers: gibsLayer,
+      format: 'image/png',
+      transparent: true,
+      opacity: wmsOpacity,
+      attribution: 'NASA GIBS',
+      crs: L.CRS.EPSG4326,
+      maxZoom: 10,
+      minZoom: 3,
+    }).addTo(mapRef.current);
   }, [wmsLayer, wmsOpacity]);
 
-  // Mise à jour de l'opacité
+  // Mise à jour de l'opacité pour les couches GIBS
   useEffect(() => {
-    if (wmsTileRef.current && mapRef.current) {
-      wmsTileRef.current.setOpacity(wmsOpacity);
-    }
     if (wmsLayerRef.current && mapRef.current) {
       wmsLayerRef.current.setOpacity(wmsOpacity);
     }
