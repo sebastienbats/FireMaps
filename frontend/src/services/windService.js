@@ -1,11 +1,5 @@
 import axios from 'axios';
 
-const WIND_CONFIG = {
-  timeout: 30000,
-  maxRetries: 3,
-  retryDelay: 5000
-};
-
 let windCache = null;
 let windCacheTime = 0;
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
