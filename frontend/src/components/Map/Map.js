@@ -341,7 +341,6 @@ const Map = ({
           let icon;
           let color;
           let size;
-          let showLabel = true;
 
           if (isPrecipitationLayer) {
             // Couche Précipitations : icônes météo
