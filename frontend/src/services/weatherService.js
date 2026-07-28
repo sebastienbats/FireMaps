@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Configuration pour les données météo
 const WEATHER_CONFIG = {
-  // Grille de points en France métropolitaine
+  // Points clés en France métropolitaine
   points: [
     { lat: 48.8566, lon: 2.3522 }, // Paris
     { lat: 45.7640, lon: 4.8357 }, // Lyon
@@ -15,7 +15,6 @@ const WEATHER_CONFIG = {
     { lat: 49.2604, lon: 4.0036 }, // Reims
     { lat: 49.2583, lon: -0.3694 }, // Caen
     { lat: 48.0922, lon: -1.6954 }, // Rennes
-    { lat: 44.8392, lon: -0.5749 }, // Bordeaux (déjà)
     { lat: 43.7103, lon: 7.2620 }, // Nice
     { lat: 47.9029, lon: 1.9086 }, // Orléans
     { lat: 49.1207, lon: 6.1774 }, // Metz
@@ -24,6 +23,7 @@ const WEATHER_CONFIG = {
     { lat: 49.4944, lon: 0.1071 }, // Le Havre
     { lat: 50.7258, lon: 1.6136 }, // Boulogne-sur-Mer
     { lat: 43.5843, lon: 3.0979 }, // Béziers
+    { lat: 48.1364, lon: -1.6455 }, // Rennes
   ],
   timeout: 10000
 };
@@ -40,100 +40,68 @@ export const fetchWeatherData = async () => {
   }
 
   try {
-    console.log('☁️ Récupération des données météo pour', WEATHER_CONFIG.points.length, 'points...');
+    console.log(`☁️ Récupération des données météo pour ${WEATHER_CONFIG.points.length} points...`);
 
-    // Récupérer les données pour tous les points
-    const weatherData = await fetchWeatherForPoints(WEATHER_CONFIG.points);
+    const results = [];
+    for (let i = 0; i < WEATHER_CONFIG.points.length; i++) {
+      const p = WEATHER_CONFIG.points[i];
+      try {
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        const data = await fetchWeatherPoint(p.lat, p.lon);
+        if (data) {
+          results.push(data);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Erreur pour le point ${p.lat},${p.lon}:`, err.message);
+      }
+    }
 
-    // Mettre en cache
-    weatherCache = weatherData;
+    if (results.length === 0) {
+      console.warn('⚠️ Aucune donnée météo récupérée, utilisation du fallback');
+      return getFallbackWeatherData();
+    }
+
+    weatherCache = results;
     weatherCacheTime = Date.now();
-
-    console.log(`☁️ Données météo chargées: ${weatherData.length} points`);
-    return weatherData;
+    console.log(`☁️ Données météo chargées: ${results.length} points`);
+    return results;
 
   } catch (error) {
     console.error('❌ Erreur fetchWeatherData:', error);
-    // Retourner des données de fallback
     return getFallbackWeatherData();
   }
 };
 
-const fetchWeatherForPoints = async (points) => {
-  const results = [];
-  const batchSize = 10; // Nombre de points par requête (limite API)
+const fetchWeatherPoint = async (lat, lon) => {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m&timezone=Europe/Paris`;
 
-  for (let i = 0; i < points.length; i += batchSize) {
-    const batch = points.slice(i, i + batchSize);
-    const lats = batch.map(p => p.lat).join(',');
-    const lons = batch.map(p => p.lon).join(',');
+    const response = await axios.get(url, { timeout: WEATHER_CONFIG.timeout });
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m&timezone=Europe/Paris`;
-
-    try {
-      const response = await axios.get(url, { timeout: WEATHER_CONFIG.timeout });
-
-      if (response.data && response.data.current) {
-        // La réponse peut être un tableau si plusieurs points
-        const currentData = response.data.current;
-        const timestamps = currentData.time || [];
-
-        // Si les données sont sous forme de tableau (multiple points)
-        if (Array.isArray(currentData.temperature_2m)) {
-          for (let j = 0; j < currentData.temperature_2m.length; j++) {
-            results.push({
-              latitude: parseFloat(batch[j].lat),
-              longitude: parseFloat(batch[j].lon),
-              temperature: currentData.temperature_2m[j],
-              humidity: currentData.relative_humidity_2m?.[j],
-              apparentTemperature: currentData.apparent_temperature?.[j],
-              precipitation: currentData.precipitation?.[j],
-              cloudCover: currentData.cloud_cover?.[j],
-              pressure: currentData.surface_pressure?.[j],
-              windSpeed: currentData.wind_speed_10m?.[j],
-              windDirection: currentData.wind_direction_10m?.[j],
-              time: timestamps[j] || new Date().toISOString(),
-            });
-          }
-        } else {
-          // Données pour un seul point
-          results.push({
-            latitude: parseFloat(batch[0].lat),
-            longitude: parseFloat(batch[0].lon),
-            temperature: currentData.temperature_2m,
-            humidity: currentData.relative_humidity_2m,
-            apparentTemperature: currentData.apparent_temperature,
-            precipitation: currentData.precipitation,
-            cloudCover: currentData.cloud_cover,
-            pressure: currentData.surface_pressure,
-            windSpeed: currentData.wind_speed_10m,
-            windDirection: currentData.wind_direction_10m,
-            time: currentData.time || new Date().toISOString(),
-          });
-        }
-      }
-    } catch (err) {
-      console.warn(`⚠️ Erreur pour le batch ${i}:`, err.message);
-      // Ajouter des données de fallback pour ce batch
-      for (const p of batch) {
-        results.push({
-          latitude: p.lat,
-          longitude: p.lon,
-          temperature: 18,
-          humidity: 65,
-          apparentTemperature: 17,
-          precipitation: 0,
-          cloudCover: 30,
-          pressure: 1015,
-          windSpeed: 10,
-          windDirection: 180,
-          time: new Date().toISOString(),
-        });
-      }
+    if (!response.data || !response.data.current) {
+      return null;
     }
-  }
 
-  return results;
+    const current = response.data.current;
+    return {
+      latitude: lat,
+      longitude: lon,
+      temperature: current.temperature_2m || 0,
+      humidity: current.relative_humidity_2m || 0,
+      apparentTemperature: current.apparent_temperature || 0,
+      precipitation: current.precipitation || 0,
+      cloudCover: current.cloud_cover || 0,
+      pressure: current.surface_pressure || 0,
+      windSpeed: current.wind_speed_10m || 0,
+      windDirection: current.wind_direction_10m || 0,
+      time: current.time || new Date().toISOString(),
+    };
+  } catch (error) {
+    console.warn(`⚠️ Erreur pour ${lat},${lon}:`, error.message);
+    return null;
+  }
 };
 
 export const getFallbackWeatherData = () => {
