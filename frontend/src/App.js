@@ -9,6 +9,7 @@ import { getFires, getSources, exportCSV, exportGeoJSON } from './services/api';
 import { fetchWindData, fetchWindDataSimple, getFallbackWindData } from './services/windService';
 
 function App() {
+  // État des feux
   const [fires, setFires] = useState([]);
   const [filteredFires, setFilteredFires] = useState([]);
   const [sources, setSources] = useState([]);
@@ -17,19 +18,24 @@ function App() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [apiInfo, setApiInfo] = useState(null);
+
+  // État des couches
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showSdis, setShowSdis] = useState(false);
   const [showWind, setShowWind] = useState(false);
   const [windData, setWindData] = useState(null);
   const [windLoading, setWindLoading] = useState(false);
   const [windError, setWindError] = useState(false);
+
+  // État WMS multi-couches
+  const [activeWmsLayers, setActiveWmsLayers] = useState([]);
+  const [wmsOpacity, setWmsOpacity] = useState(0.6);
+
+  // État UI
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
   const [alerts, setAlerts] = useState([]);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [apiInfo, setApiInfo] = useState(null);
-  // Couches WMS
-  const [wmsLayer, setWmsLayer] = useState(null);
-  const [wmsOpacity, setWmsOpacity] = useState(0.6);
 
   // Fonction distance (helper)
   const distance = useCallback((lat1, lon1, lat2, lon2) => {
@@ -110,7 +116,7 @@ function App() {
   }, [darkMode]);
 
   // Charger les données vent
-  const loadWindData = async () => {
+  const loadWindData = useCallback(async () => {
     if (windLoading) return;
     setWindLoading(true);
     setWindError(false);
@@ -134,7 +140,7 @@ function App() {
     } finally {
       setWindLoading(false);
     }
-  };
+  }, [windLoading]);
 
   // Gérer le toggle du vent
   const handleWindToggle = useCallback(async () => {
@@ -239,7 +245,10 @@ function App() {
       />
 
       <header className="app-header">
-        <h1><span className="fire-icon">🔥</span> Feux & Vents & Météo & SDIS</h1>
+        <h1>
+          <span className="fire-icon">🔥</span> 
+          Feux & Vents & Météo & SDIS
+        </h1>
         <div className="header-controls">
           <button
             onClick={() => setDarkMode(!darkMode)}
@@ -276,8 +285,8 @@ function App() {
             setShowWind={handleWindToggle}
             windLoading={windLoading}
             darkMode={darkMode}
-            wmsLayer={wmsLayer}
-            setWmsLayer={setWmsLayer}
+            activeWmsLayers={activeWmsLayers}
+            setActiveWmsLayers={setActiveWmsLayers}
             wmsOpacity={wmsOpacity}
             setWmsOpacity={setWmsOpacity}
           />
@@ -310,7 +319,9 @@ function App() {
             {lastUpdate && (
               <div className="stat-item">
                 <span className="stat-label">Mise à jour</span>
-                <span className="stat-value small">{new Date(lastUpdate).toLocaleString('fr-FR')}</span>
+                <span className="stat-value small">
+                  {new Date(lastUpdate).toLocaleString('fr-FR')}
+                </span>
               </div>
             )}
             {windData && (
@@ -325,10 +336,10 @@ function App() {
                 <span className="stat-value small" style={{ color: '#e74c3c' }}>❌ Indisponible</span>
               </div>
             )}
-            {wmsLayer && (
+            {activeWmsLayers.length > 0 && (
               <div className="stat-item">
-                <span className="stat-label">WMS</span>
-                <span className="stat-value small">✅ Actif</span>
+                <span className="stat-label">WMS actives</span>
+                <span className="stat-value small">✅ {activeWmsLayers.length}</span>
               </div>
             )}
           </div>
@@ -347,7 +358,7 @@ function App() {
               showWind={showWind}
               windData={windData}
               onWindToggle={handleWindToggle}
-              wmsLayer={wmsLayer}
+              activeWmsLayers={activeWmsLayers}
               wmsOpacity={wmsOpacity}
             />
           </div>
