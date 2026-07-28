@@ -27,8 +27,11 @@ function App() {
   const [alerts, setAlerts] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [apiInfo, setApiInfo] = useState(null);
+  // Couches WMS
+  const [wmsLayer, setWmsLayer] = useState(null);
+  const [wmsOpacity, setWmsOpacity] = useState(0.6);
 
-  // Charger les sources au démarrage
+  // Sources
   useEffect(() => {
     const loadSources = async () => {
       try {
@@ -41,36 +44,22 @@ function App() {
     loadSources();
   }, []);
 
-  // Appliquer le mode sombre
+  // Dark mode
   useEffect(() => {
     document.body.className = darkMode ? 'dark' : '';
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
 
-  // Charger les données vent
+  // Vent
   const loadWindData = async () => {
     if (windLoading) return;
-    
     setWindLoading(true);
     setWindError(false);
     const toastId = toast.loading('🌬️ Chargement des données vent...');
-    
     try {
-      let data;
-      
-      // Essayer d'abord avec la grille complète
-      data = await fetchWindData();
-      
-      if (!data) {
-        console.warn('⚠️ Échec de la récupération, utilisation du mode simple...');
-        data = await fetchWindDataSimple();
-      }
-      
-      if (!data) {
-        console.warn('⚠️ Échec du mode simple, utilisation des données de fallback...');
-        data = getFallbackWindData();
-      }
-      
+      let data = await fetchWindData();
+      if (!data) data = await fetchWindDataSimple();
+      if (!data) data = getFallbackWindData();
       if (data) {
         setWindData(data);
         toast.success('🌬️ Données vent chargées', { id: toastId });
@@ -88,33 +77,29 @@ function App() {
     }
   };
 
-  // Gérer le toggle du vent
   const handleWindToggle = async () => {
     if (showWind) {
-      // Désactiver le vent
       setShowWind(false);
       setWindData(null);
       toast.success('🌬️ Couche vent désactivée');
     } else {
-      // Activer le vent
       setShowWind(true);
       if (!windData && !windError) {
         await loadWindData();
       } else if (windError) {
-        toast.error('🌬️ Les données vent ne sont pas disponibles. Réessayez plus tard.');
+        toast.error('🌬️ Données vent indisponibles. Réessayez plus tard.');
         setShowWind(false);
       }
     }
   };
 
-  // Charger les feux
+  // Feux
   const fetchFires = async () => {
     const apiKey = localStorage.getItem('firms_map_key');
     if (!apiKey || apiKey.trim() === '') {
       toast.error('⚠️ Veuillez entrer votre clé API FIRMS dans les paramètres');
       return;
     }
-    
     setLoading(true);
     try {
       const data = await getFires({
@@ -123,7 +108,6 @@ function App() {
         startDate,
         endDate
       });
-      
       setFires(data.data);
       setFilteredFires(data.data);
       setLastUpdate(data.timestamp);
@@ -135,14 +119,9 @@ function App() {
         count: data.count,
         bbox: data.bbox
       });
-      
       let message = `✅ ${data.count} feux en France`;
-      if (data.total_world) {
-        message += ` (${data.total_world} dans le monde, ${data.total_france} en France)`;
-      }
+      if (data.total_world) message += ` (${data.total_world} dans le monde, ${data.total_france} en France)`;
       toast.success(message);
-      
-      // Si la heatmap est active, forcer le rechargement
       if (showHeatmap) {
         setShowHeatmap(false);
         setTimeout(() => setShowHeatmap(true), 100);
@@ -155,35 +134,30 @@ function App() {
     }
   };
 
-  // Filtrer les feux
+  // Filtres
   const handleFilterChange = (filters) => {
     let filtered = [...fires];
-    
     if (filters.highConfidence) {
-      filtered = filtered.filter(f => 
+      filtered = filtered.filter(f =>
         ['high', 'h', '100', 'nominal'].includes(f.confidence?.toLowerCase())
       );
     }
-    
     if (filters.frp) {
       filtered = filtered.filter(f => (f.frp || 0) >= 50);
     }
-    
     setFilteredFires(filtered);
   };
 
-  // Exporter
+  // Export
   const handleExport = async (format) => {
     if (filteredFires.length === 0) {
       toast.error('Aucune donnée à exporter');
       return;
     }
-
     try {
-      const result = format === 'csv' 
+      const result = format === 'csv'
         ? await exportCSV(filteredFires)
         : await exportGeoJSON(filteredFires);
-      
       toast.success(`✅ Export ${format.toUpperCase()} sauvegardé`);
       window.open(result.downloadUrl, '_blank');
     } catch (error) {
@@ -191,12 +165,11 @@ function App() {
     }
   };
 
-  // Détecter les hotspots (alertes)
+  // Hotspots
   const detectHotspots = (fires) => {
     const RADIUS_DEG = 0.1;
     const MIN_FIRES = 5;
     const hotspots = [];
-
     for (let i = 0; i < fires.length; i++) {
       let count = 1;
       for (let j = i + 1; j < fires.length; j++) {
@@ -207,31 +180,20 @@ function App() {
         if (d < RADIUS_DEG) count++;
       }
       if (count >= MIN_FIRES) {
-        hotspots.push({
-          lat: fires[i].latitude,
-          lng: fires[i].longitude,
-          count
-        });
+        hotspots.push({ lat: fires[i].latitude, lng: fires[i].longitude, count });
       }
     }
-
-    // Dédoublonner
     const unique = [];
     for (const h of hotspots) {
       let dup = false;
       for (const u of unique) {
-        if (distance(h.lat, h.lng, u.lat, u.lng) < RADIUS_DEG * 0.5) {
-          dup = true;
-          break;
-        }
+        if (distance(h.lat, h.lng, u.lat, u.lng) < RADIUS_DEG * 0.5) { dup = true; break; }
       }
       if (!dup) unique.push(h);
     }
-
     setAlerts(unique);
   };
 
-  // Helper distance
   const distance = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -241,7 +203,6 @@ function App() {
     return (R * c) / 111;
   };
 
-  // Mettre à jour les alertes quand les feux filtrés changent
   useEffect(() => {
     if (filteredFires.length > 0) {
       detectHotspots(filteredFires);
@@ -252,31 +213,21 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: darkMode ? '#1f2937' : '#ffffff',
-            color: darkMode ? '#e5e7eb' : '#1f2937',
-          },
-        }}
-      />
-      
+      <Toaster position="top-right" toastOptions={{
+        duration: 4000,
+        style: {
+          background: darkMode ? '#1f2937' : '#ffffff',
+          color: darkMode ? '#e5e7eb' : '#1f2937',
+        },
+      }} />
+
       <header className="app-header">
-        <h1>
-          <span className="fire-icon">🔥</span> 
-          Feux & Vents & SDIS
-        </h1>
+        <h1><span className="fire-icon">🔥</span> Feux & Vents & Météo & SDIS</h1>
         <div className="header-controls">
-          <button 
-            onClick={() => setDarkMode(!darkMode)}
-            className="dark-toggle"
-            aria-label="Basculer le mode sombre"
-          >
+          <button onClick={() => setDarkMode(!darkMode)} className="dark-toggle" aria-label="Basculer le mode sombre">
             {darkMode ? '☀️' : '🌙'}
           </button>
-          <span className="header-subtitle">NASA FIRMS • Open-Meteo • SDIS</span>
+          <span className="header-subtitle">NASA FIRMS • Open‑Meteo • GIBS • SDIS</span>
         </div>
       </header>
 
@@ -304,8 +255,12 @@ function App() {
             setShowWind={handleWindToggle}
             windLoading={windLoading}
             darkMode={darkMode}
+            wmsLayer={wmsLayer}
+            setWmsLayer={setWmsLayer}
+            wmsOpacity={wmsOpacity}
+            setWmsOpacity={setWmsOpacity}
           />
-          
+
           <div className="stats-panel">
             <div className="stat-item">
               <span className="stat-label">Feux en France</span>
@@ -334,9 +289,7 @@ function App() {
             {lastUpdate && (
               <div className="stat-item">
                 <span className="stat-label">Mise à jour</span>
-                <span className="stat-value small">
-                  {new Date(lastUpdate).toLocaleString('fr-FR')}
-                </span>
+                <span className="stat-value small">{new Date(lastUpdate).toLocaleString('fr-FR')}</span>
               </div>
             )}
             {windData && (
@@ -349,6 +302,12 @@ function App() {
               <div className="stat-item">
                 <span className="stat-label">Vent</span>
                 <span className="stat-value small" style={{ color: '#e74c3c' }}>❌ Indisponible</span>
+              </div>
+            )}
+            {wmsLayer && (
+              <div className="stat-item">
+                <span className="stat-label">WMS</span>
+                <span className="stat-value small">✅ Actif</span>
               </div>
             )}
           </div>
@@ -367,6 +326,8 @@ function App() {
               showWind={showWind}
               windData={windData}
               onWindToggle={handleWindToggle}
+              wmsLayer={wmsLayer}
+              wmsOpacity={wmsOpacity}
             />
           </div>
           <div className="chart-container">
@@ -377,9 +338,10 @@ function App() {
 
       <footer className="app-footer">
         <p>
-          Données feux : <a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA FIRMS</a> • 
-          Données vent : <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> • 
-          Données SDIS : <a href="https://data.gouv.fr/" target="_blank" rel="noopener noreferrer">data.gouv.fr</a>
+          Données feux : <a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA FIRMS</a> •
+          Données vent/météo : <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open‑Meteo</a> •
+          NDVI/LST : <a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener noreferrer">NASA GIBS</a> •
+          SDIS : <a href="https://data.gouv.fr/" target="_blank" rel="noopener noreferrer">data.gouv.fr</a>
         </p>
         <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '2px' }}>
           Version 1.0.0 • {new Date().getFullYear()}
