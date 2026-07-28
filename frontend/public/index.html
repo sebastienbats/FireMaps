@@ -5,82 +5,23 @@
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#e67e22" />
-  <meta name="description" content="Visualisation des feux, vents et casernes SDIS en France - NASA FIRMS, Open-Meteo et data.gouv.fr" />
-  <title>🔥 Feux & Vents & SDIS - France</title>
-  
-  <!-- ============================================================
-       FONT AWESOME 6.4.2 (icônes)
-       ============================================================ -->
+  <meta name="description" content="Visualisation des feux, vents, météo, NDVI, LST et SDIS en France" />
+  <title>🔥 Feux & Vents & Météo & SDIS</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
-  
-  <!-- ============================================================
-       LEAFLET 1.9.4 (carte interactive)
-       ============================================================ -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <!-- ============================================================
-       LEAFLET-VELOCITY (couche de vent animée)
-       ============================================================ -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.css" />
 </head>
 <body>
   <noscript>
-    <div style="text-align: center; padding: 40px; font-family: Arial, sans-serif;">
+    <div style="text-align:center; padding:40px; font-family:Arial, sans-serif;">
       <h2>⚠️ JavaScript est désactivé</h2>
-      <p>Cette application nécessite JavaScript pour fonctionner.<br />
-      Veuillez l'activer dans les paramètres de votre navigateur.</p>
+      <p>Cette application nécessite JavaScript pour fonctionner.<br />Veuillez l'activer.</p>
     </div>
   </noscript>
-  
   <div id="root"></div>
-  
-  <!-- ============================================================
-       SCRIPTS - Chargement dans l'ordre des dépendances
-       ============================================================ -->
-  
-  <!-- 1. LEAFLET CORE -->
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
-  <!-- 2. LEAFLET.HEAT (heatmap) - Avec fallback CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
-  
-  <!-- 3. LEAFLET-VELOCITY (vent) -->
   <script src="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
-  
-  <!-- 4. VÉRIFICATION DU CHARGEMENT -->
-  <script>
-    // Vérifier que les plugins sont chargés
-    (function checkPlugins() {
-      console.log('🔍 Vérification des plugins Leaflet...');
-      
-      if (typeof L !== 'undefined') {
-        console.log('✅ Leaflet core chargé');
-        
-        if (typeof L.heatLayer === 'function') {
-          console.log('✅ Leaflet.heat chargé');
-        } else {
-          console.warn('⚠️ Leaflet.heat non chargé, tentative de chargement alternatif...');
-          // Tentative de chargement alternatif
-          var script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/leaflet-heat@0.2.0/leaflet-heat.js';
-          script.onload = function() {
-            console.log('✅ Leaflet.heat chargé (fallback)');
-          };
-          script.onerror = function() {
-            console.error('❌ Échec du chargement de Leaflet.heat');
-          };
-          document.head.appendChild(script);
-        }
-        
-        if (typeof L.velocityLayer === 'function') {
-          console.log('✅ Leaflet-Velocity chargé');
-        } else {
-          console.warn('⚠️ Leaflet-Velocity non chargé');
-        }
-      } else {
-        console.error('❌ Leaflet core non chargé');
-      }
-    })();
-  </script>
 </body>
 </html>
