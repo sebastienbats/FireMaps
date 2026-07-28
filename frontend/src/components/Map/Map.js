@@ -295,11 +295,13 @@ const Map = ({
   useEffect(() => {
     if (!mapRef.current) return;
 
+    // Supprimer l'ancienne couche météo
     if (weatherLayerRef.current) {
       mapRef.current.removeLayer(weatherLayerRef.current);
       weatherLayerRef.current = null;
     }
 
+    // Vérifier si une couche météo est active
     const weatherLayer = activeWmsLayers.find(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'weather';
@@ -335,17 +337,19 @@ const Map = ({
           const precip = point.precipitation || 0;
           const cloud = Math.round(point.cloudCover || 0);
 
-          // Déterminer l'icône selon le type de couche
+          // Déterminer l'icône et la couleur selon le type de couche
           let icon;
           let color;
           let size;
           let showLabel = true;
 
           if (isPrecipitationLayer) {
+            // Couche Précipitations : icônes météo
             icon = getWeatherIcon('precipitation', precip, cloud);
             color = getPrecipitationColor(precip);
             size = getPrecipitationSize(precip);
           } else {
+            // Autres couches météo
             icon = getWeatherIcon('temperature', precip, cloud);
             color = getColorForTemperature(point.temperature);
             size = 14;
@@ -365,32 +369,36 @@ const Map = ({
           `;
 
           if (isPrecipitationLayer) {
-            // Marqueur avec icône météo pour les précipitations
+            // === MARQUEUR AVEC ICÔNE MÉTÉO POUR PRÉCIPITATIONS ===
             const weatherIcon = L.divIcon({
-              html: `<div style="font-size:${size + 6}px;text-shadow:0 1px 4px rgba(0,0,0,0.5);">${icon}</div>`,
+              html: `<div style="font-size:${size + 8}px;text-shadow:0 1px 4px rgba(0,0,0,0.5);">${icon}</div>`,
               className: 'weather-icon-marker',
-              iconSize: [size + 10, size + 10],
-              iconAnchor: [(size + 10) / 2, (size + 10) / 2],
+              iconSize: [size + 12, size + 12],
+              iconAnchor: [(size + 12) / 2, (size + 12) / 2],
             });
 
-            const marker = L.marker([point.latitude, point.longitude], { icon: weatherIcon })
-              .bindPopup(popupContent);
+            const marker = L.marker([point.latitude, point.longitude], { 
+              icon: weatherIcon,
+              opacity: opacity,
+              interactive: true,
+            }).bindPopup(popupContent);
 
             weatherLayerRef.current.addLayer(marker);
 
-            // Ajouter une étiquette avec la quantité de précipitations
+            // Étiquette avec la quantité de précipitations
             const label = L.marker([point.latitude, point.longitude], {
               icon: L.divIcon({
-                html: `<div style="font-size:9px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:${size + 8}px;line-height:1.2;pointer-events:none;background:rgba(0,0,0,0.5);padding:0 4px;border-radius:4px;">${precip.toFixed(1)}mm</div>`,
+                html: `<div style="font-size:10px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.9),0 0 8px rgba(0,0,0,0.7);text-align:center;margin-top:${size + 8}px;line-height:1.2;pointer-events:none;background:rgba(0,0,0,0.6);padding:1px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);">${precip.toFixed(1)}mm</div>`,
                 className: 'weather-label',
-                iconSize: [40, 16],
-                iconAnchor: [20, 0],
+                iconSize: [50, 18],
+                iconAnchor: [25, 0],
               })
             });
 
             weatherLayerRef.current.addLayer(label);
+
           } else {
-            // Pour les autres couches (température, couverture nuageuse)
+            // === MARQUEUR AVEC CERCLE POUR AUTRES COUCHES ===
             const marker = L.circleMarker([point.latitude, point.longitude], {
               radius: size,
               fillColor: color,
@@ -421,6 +429,7 @@ const Map = ({
 
       } catch (error) {
         console.error('❌ Erreur chargement météo:', error);
+        // Fallback
         const fallbackData = getFallbackWeatherData();
         if (fallbackData && fallbackData.length > 0 && isMounted) {
           weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
