@@ -3,16 +3,34 @@ import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
 
-// Liste des couches WMS pour référence
+// Liste des couches WMS disponibles avec options spécifiques
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- NASA GIBS (WMS) ---
-  { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
-  { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
-  { value: 'lst_night', label: '🌡️ LST (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
+  // --- NASA GIBS (WMS) avec paramètres spécifiques ---
+  { 
+    value: 'ndvi', 
+    label: '🌿 Végétation (NDVI)', 
+    type: 'gibs', 
+    layer: 'MOD13A2_NDVI',
+    options: { styles: 'palette/ndvi' }
+  },
+  { 
+    value: 'lst_day', 
+    label: '🌡️ LST (jour)', 
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Day_1km',
+    options: { styles: 'palette/thermal' }
+  },
+  { 
+    value: 'lst_night', 
+    label: '🌡️ LST (nuit)', 
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Night_1km',
+    options: { styles: 'palette/thermal' }
+  },
 ];
 
 // Vérification des plugins
@@ -87,7 +105,6 @@ const Map = ({
 
   // Fonction pour obtenir l'icône météo selon le type de couche
   const getWeatherIcon = (weatherType, precipitation, cloudCover) => {
-    // Si c'est une couche précipitations
     if (weatherType === 'precipitation') {
       if (precipitation > 5) return '⛈️';
       if (precipitation > 2) return '🌧️';
@@ -95,8 +112,6 @@ const Map = ({
       if (precipitation > 0.1) return '☔';
       return '☀️';
     }
-    
-    // Pour les autres couches météo
     if (precipitation > 1) return '🌧️';
     if (precipitation > 0.1) return '🌦️';
     if (cloudCover > 80) return '☁️';
@@ -233,10 +248,13 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Gestion des couches GIBS WMS
+  // ============================================================
+  // GESTION DES COUCHES GIBS WMS (NDVI, LST jour, LST nuit)
+  // ============================================================
   useEffect(() => {
     if (!mapRef.current) return;
 
+    // Identifier les couches GIBS actives
     const activeGibsValues = activeWmsLayers
       .filter(l => {
         const def = WMS_LAYERS.find(d => d.value === l.value);
@@ -244,6 +262,7 @@ const Map = ({
       })
       .map(l => l.value);
 
+    // Supprimer les couches GIBS qui ne sont plus actives
     Object.keys(wmsLayersRef.current).forEach(key => {
       if (!activeGibsValues.includes(key)) {
         if (wmsLayersRef.current[key] && mapRef.current) {
@@ -253,6 +272,7 @@ const Map = ({
       }
     });
 
+    // Ajouter ou mettre à jour les couches GIBS actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
       if (!fullDef || fullDef.type !== 'gibs') return;
@@ -260,6 +280,7 @@ const Map = ({
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
 
+      // Si la couche existe déjà, mettre à jour l'opacité
       if (existingLayer) {
         existingLayer.setOpacity(opacity);
         return;
@@ -267,19 +288,67 @@ const Map = ({
 
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${opacity})`);
-      const layer = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
+      
+      // Configuration WMS pour GIBS
+      const wmsOptions = {
         layers: gibsLayer,
         format: 'image/png',
         transparent: true,
         opacity: opacity,
         attribution: 'NASA GIBS',
-        crs: L.CRS.EPSG4326,
+        crs: L.CRS.EPSG4326, // Système de coordonnées géographique
         maxZoom: 10,
         minZoom: 3,
-      }).addTo(mapRef.current);
+        tileSize: 512,
+        zoomOffset: 0,
+        // Paramètres spécifiques
+        styles: fullDef.options?.styles || '',
+      };
 
-      wmsLayersRef.current[layerDef.value] = layer;
+      // Pour les couches LST, ajouter des paramètres spécifiques
+      if (gibsLayer.includes('LST')) {
+        // Utiliser la date d'hier pour avoir des données disponibles (MODIS)
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dateStr = yesterday.toISOString().slice(0, 10);
+        wmsOptions.time = dateStr;
+        console.log(`📅 Date LST: ${dateStr}`);
+      } else if (gibsLayer === 'MOD13A2_NDVI') {
+        // NDVI - utiliser une date plus récente (16 jours max)
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        wmsOptions.time = twoWeeksAgo.toISOString().slice(0, 10);
+        console.log(`📅 Date NDVI: ${wmsOptions.time}`);
+      }
+
+      console.log(`📡 Paramètres WMS GIBS:`, {
+        layers: wmsOptions.layers,
+        styles: wmsOptions.styles,
+        time: wmsOptions.time || 'non spécifié',
+        crs: 'EPSG:4326',
+        opacity: wmsOptions.opacity
+      });
+
+      try {
+        const layer = L.tileLayer.wms(
+          'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
+          wmsOptions
+        ).addTo(mapRef.current);
+
+        wmsLayersRef.current[layerDef.value] = layer;
+        console.log(`✅ Couche GIBS ajoutée: ${gibsLayer}`);
+      } catch (error) {
+        console.error(`❌ Erreur lors de l'ajout de la couche ${gibsLayer}:`, error);
+      }
     });
+
+    // Forcer un redimensionnement de la carte après l'ajout des couches
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+        console.log('🔄 Carte redimensionnée après ajout des couches GIBS');
+      }
+    }, 500);
 
     return () => {
       Object.values(wmsLayersRef.current).forEach(layer => {
@@ -337,24 +406,20 @@ const Map = ({
           const precip = point.precipitation || 0;
           const cloud = Math.round(point.cloudCover || 0);
 
-          // Déterminer l'icône et la couleur selon le type de couche
           let icon;
           let color;
           let size;
 
           if (isPrecipitationLayer) {
-            // Couche Précipitations : icônes météo
             icon = getWeatherIcon('precipitation', precip, cloud);
             color = getPrecipitationColor(precip);
             size = getPrecipitationSize(precip);
           } else {
-            // Autres couches météo
             icon = getWeatherIcon('temperature', precip, cloud);
             color = getColorForTemperature(point.temperature);
             size = 14;
           }
 
-          // Popup avec toutes les informations
           const popupContent = `
             <strong>${icon} ${isPrecipitationLayer ? precip.toFixed(1) + ' mm' : temp + '°C'}</strong><br/>
             <b>Ressenti:</b> ${feelsLike}°C<br/>
@@ -368,7 +433,6 @@ const Map = ({
           `;
 
           if (isPrecipitationLayer) {
-            // === MARQUEUR AVEC ICÔNE MÉTÉO POUR PRÉCIPITATIONS ===
             const weatherIcon = L.divIcon({
               html: `<div style="font-size:${size + 8}px;text-shadow:0 1px 4px rgba(0,0,0,0.5);">${icon}</div>`,
               className: 'weather-icon-marker',
@@ -384,7 +448,6 @@ const Map = ({
 
             weatherLayerRef.current.addLayer(marker);
 
-            // Étiquette avec la quantité de précipitations
             const label = L.marker([point.latitude, point.longitude], {
               icon: L.divIcon({
                 html: `<div style="font-size:10px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.9),0 0 8px rgba(0,0,0,0.7);text-align:center;margin-top:${size + 8}px;line-height:1.2;pointer-events:none;background:rgba(0,0,0,0.6);padding:1px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);">${precip.toFixed(1)}mm</div>`,
@@ -397,7 +460,6 @@ const Map = ({
             weatherLayerRef.current.addLayer(label);
 
           } else {
-            // === MARQUEUR AVEC CERCLE POUR AUTRES COUCHES ===
             const marker = L.circleMarker([point.latitude, point.longitude], {
               radius: size,
               fillColor: color,
@@ -409,7 +471,6 @@ const Map = ({
 
             weatherLayerRef.current.addLayer(marker);
 
-            // Étiquette avec la température
             const label = L.marker([point.latitude, point.longitude], {
               icon: L.divIcon({
                 html: `<div style="font-size:11px;font-weight:bold;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8),0 0 8px rgba(0,0,0,0.6);text-align:center;margin-top:-${size + 14}px;line-height:1.2;pointer-events:none;">${temp}°</div>`,
@@ -428,7 +489,6 @@ const Map = ({
 
       } catch (error) {
         console.error('❌ Erreur chargement météo:', error);
-        // Fallback
         const fallbackData = getFallbackWeatherData();
         if (fallbackData && fallbackData.length > 0 && isMounted) {
           weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
