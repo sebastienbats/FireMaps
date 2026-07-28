@@ -10,6 +10,9 @@ let windCache = null;
 let windCacheTime = 0;
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
+// ============================================================
+// FONCTION PRINCIPALE
+// ============================================================
 export const fetchWindData = async () => {
   // Vérifier le cache
   if (windCache && (Date.now() - windCacheTime) < CACHE_DURATION) {
@@ -72,10 +75,12 @@ export const fetchWindData = async () => {
   return getFallbackWindData();
 };
 
-// Récupérer les données pour un point unique avec l'API current
+// ============================================================
+// RÉCUPÉRATION D'UN POINT UNIQUE
+// ============================================================
 const fetchWindPoint = async (lat, lon) => {
   try {
-    // Utiliser current au lieu de hourly
+    // Utiliser current pour les données instantanées
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&timezone=Europe/Paris`;
 
     const response = await axios.get(url, {
@@ -109,7 +114,9 @@ const fetchWindPoint = async (lat, lon) => {
   }
 };
 
-// Construire une grille à partir des points récupérés
+// ============================================================
+// CONSTRUCTION DE LA GRILLE
+// ============================================================
 const buildWindGrid = (points) => {
   if (!points || points.length === 0) return null;
 
@@ -154,6 +161,84 @@ const buildWindGrid = (points) => {
   };
 };
 
+// ============================================================
+// MODE SIMPLE (AVEC CACHE)
+// ============================================================
+export const fetchWindDataSimple = async () => {
+  console.log('🌬️ Récupération des données vent (mode simple)...');
+
+  const cacheKey = 'wind_simple';
+  const cached = sessionStorage.getItem(cacheKey);
+
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (data && (Date.now() - data.timestamp) < CACHE_DURATION) {
+        console.log('🌬️ Utilisation du cache simple');
+        return data.data;
+      }
+    } catch (e) {
+      // Ignorer les erreurs de parsing
+    }
+  }
+
+  // Points clés en France métropolitaine (grille plus large)
+  const points = [
+    { lat: 44.0, lon: -2.0 },
+    { lat: 44.0, lon: 1.0 },
+    { lat: 44.0, lon: 4.0 },
+    { lat: 44.0, lon: 7.0 },
+    { lat: 46.5, lon: -2.0 },
+    { lat: 46.5, lon: 1.0 },
+    { lat: 46.5, lon: 4.0 },
+    { lat: 46.5, lon: 7.0 },
+    { lat: 49.0, lon: -2.0 },
+    { lat: 49.0, lon: 1.0 },
+    { lat: 49.0, lon: 4.0 },
+    { lat: 49.0, lon: 7.0 },
+    { lat: 51.0, lon: 0.0 },
+    { lat: 51.0, lon: 3.0 },
+    { lat: 51.0, lon: 6.0 }
+  ];
+
+  const allData = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    try {
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      const data = await fetchWindPoint(p.lat, p.lon);
+      if (data) {
+        allData.push(data);
+        console.log(`✅ Point ${i + 1}/${points.length}: ${p.lat},${p.lon}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ Erreur pour le point ${p.lat},${p.lon}:`, err.message);
+    }
+  }
+
+  if (allData.length === 0) {
+    console.warn('⚠️ Aucune donnée récupérée, utilisation du fallback');
+    return getFallbackWindData();
+  }
+
+  const windData = buildWindGrid(allData);
+  if (windData) {
+    sessionStorage.setItem(cacheKey, JSON.stringify({
+      timestamp: Date.now(),
+      data: windData
+    }));
+    console.log(`🌬️ Données vent simples chargées: ${windData.header.nx}x${windData.header.ny} points`);
+    return windData;
+  }
+
+  return getFallbackWindData();
+};
+
+// ============================================================
+// DONNÉES DE FALLBACK (SIMULÉES)
+// ============================================================
 export const getFallbackWindData = () => {
   console.log('🌬️ Utilisation des données vent de fallback');
 
@@ -169,6 +254,7 @@ export const getFallbackWindData = () => {
     const rowU = [];
     const rowV = [];
     for (let i = 0; i < nx; i++) {
+      // Simuler des vents avec des variations
       const u = 5 * Math.sin(i * 0.5 + j * 0.3) + 2 * Math.cos(i * 0.7 - j * 0.4);
       const v = 3 * Math.cos(i * 0.4 + j * 0.6) + 4 * Math.sin(i * 0.3 - j * 0.5);
       rowU.push(u);
