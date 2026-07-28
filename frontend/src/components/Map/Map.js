@@ -2,8 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 
-// Récupération de la liste des couches WMS depuis Controls (on peut la recopier ici ou l'importer)
-// Pour éviter un import circulaire, on la redéfinit (ou on pourrait la placer dans un fichier séparé)
+// Récupération de la liste des couches WMS
 const WMS_LAYERS = [
   { value: 'temperature_2m', label: '🌡️ Température', type: 'open-meteo' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'open-meteo' },
@@ -202,7 +201,8 @@ const Map = ({
     if (!layerDef) return;
 
     if (layerDef.type === 'open-meteo') {
-      const url = `https://tile.open-meteo.com/{z}/{x}/{y}/${wmsLayer}.png?time=latest`;
+      // URL Open-Meteo corrigée - Utilisation de l'API WMS standard
+      const url = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${wmsLayer}.png?time=latest`;
       console.log(`🌦️ Ajout de la couche Open-Meteo: ${wmsLayer} (opacité ${wmsOpacity})`);
       wmsTileRef.current = L.tileLayer(url, {
         opacity: wmsOpacity,
