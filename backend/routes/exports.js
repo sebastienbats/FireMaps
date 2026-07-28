@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  exportCSV, 
-  exportGeoJSON, 
+const {
+  exportCSV,
+  exportGeoJSON,
   listExports,
-  deleteExport 
+  deleteExport
 } = require('../controllers/exportController');
 
 router.post('/csv', exportCSV);
