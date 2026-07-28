@@ -3,16 +3,34 @@ import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
 
-// Liste des couches WMS disponibles
+// Liste des couches WMS disponibles avec labels clairs
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- NASA GIBS (WMS) ---
-  { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
-  { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
-  { value: 'lst_night', label: '🌡️ LST (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
+  // --- NASA GIBS (WMS) avec paramètres spécifiques ---
+  { 
+    value: 'ndvi', 
+    label: '🌿 Végétation (NDVI - MODIS)', 
+    type: 'gibs', 
+    layer: 'MOD13A2_NDVI',
+    options: { styles: 'palette/ndvi' }
+  },
+  { 
+    value: 'lst_day', 
+    label: '🌡️ LST Jour (MODIS - 1km)', 
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Day_1km',
+    options: { styles: 'palette/thermal' }
+  },
+  { 
+    value: 'lst_night', 
+    label: '🌡️ LST Nuit (MODIS - 1km)', 
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Night_1km',
+    options: { styles: 'palette/thermal' }
+  },
 ];
 
 const Controls = ({
@@ -37,7 +55,6 @@ const Controls = ({
   setShowWind,
   windLoading,
   darkMode,
-  // Nouvelles props pour les couches multiples
   activeWmsLayers,
   setActiveWmsLayers,
   wmsOpacity,
@@ -259,7 +276,7 @@ const Controls = ({
         </div>
       </div>
 
-      {/* Couches WMS - Multi-sélection */}
+      {/* Couches WMS - Multi-sélection avec labels améliorés */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🗺️</span> Couches WMS
@@ -304,6 +321,9 @@ const Controls = ({
           {activeWmsLayers.length > 0 
             ? `✅ ${activeWmsLayers.length} couche(s) active(s)`
             : 'Aucune couche active'}
+        </small>
+        <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
+          💡 Les couches GIBS (MODIS) ont une latence de 1-2 jours
         </small>
       </div>
 
