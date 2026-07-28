@@ -3,9 +3,9 @@ import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
 
-// Liste des couches WMS disponibles
+// Liste des couches WMS pour référence
 const WMS_LAYERS = [
-  // --- Open-Meteo (données météo en points) ---
+  // --- Open-Meteo (météo en points) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
@@ -62,7 +62,7 @@ const Map = ({
   showWind = false,
   windData = null,
   onWindToggle,
-  wmsLayer = null,
+  activeWmsLayers = [],
   wmsOpacity = 0.6,
 }) => {
   const mapRef = useRef(null);
@@ -70,8 +70,8 @@ const Map = ({
   const heatmapRef = useRef(null);
   const alertRefs = useRef([]);
   const velocityRef = useRef(null);
-  const wmsTileRef = useRef(null);
-  const wmsLayerRef = useRef(null);
+  // Références pour les couches WMS
+  const wmsLayersRef = useRef({});
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
 
@@ -204,7 +204,70 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Couche météo (points avec données Open-Meteo)
+  // Gestion des couches GIBS WMS (multi-couches)
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Supprimer les couches GIBS qui ne sont plus actives
+    const activeGibsValues = activeWmsLayers
+      .filter(l => {
+        const def = WMS_LAYERS.find(d => d.value === l.value);
+        return def && def.type === 'gibs';
+      })
+      .map(l => l.value);
+
+    Object.keys(wmsLayersRef.current).forEach(key => {
+      if (!activeGibsValues.includes(key)) {
+        if (wmsLayersRef.current[key] && mapRef.current) {
+          mapRef.current.removeLayer(wmsLayersRef.current[key]);
+          delete wmsLayersRef.current[key];
+        }
+      }
+    });
+
+    // Ajouter ou mettre à jour les couches GIBS actives
+    activeWmsLayers.forEach(layerDef => {
+      const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
+      if (!fullDef || fullDef.type !== 'gibs') return;
+
+      const existingLayer = wmsLayersRef.current[layerDef.value];
+      const opacity = layerDef.opacity || wmsOpacity;
+
+      // Mettre à jour l'opacité si la couche existe déjà
+      if (existingLayer) {
+        existingLayer.setOpacity(opacity);
+        return;
+      }
+
+      // Créer la couche GIBS
+      const gibsLayer = fullDef.layer;
+      console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${opacity})`);
+      const layer = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
+        layers: gibsLayer,
+        format: 'image/png',
+        transparent: true,
+        opacity: opacity,
+        attribution: 'NASA GIBS',
+        crs: L.CRS.EPSG4326,
+        maxZoom: 10,
+        minZoom: 3,
+      }).addTo(mapRef.current);
+
+      wmsLayersRef.current[layerDef.value] = layer;
+    });
+
+    // Nettoyage
+    return () => {
+      Object.values(wmsLayersRef.current).forEach(layer => {
+        if (mapRef.current) {
+          mapRef.current.removeLayer(layer);
+        }
+      });
+      wmsLayersRef.current = {};
+    };
+  }, [activeWmsLayers, wmsOpacity]);
+
+  // Gestion de la couche météo (points) - une seule couche météo à la fois
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -214,9 +277,19 @@ const Map = ({
       weatherLayerRef.current = null;
     }
 
-    // Si pas de couche météo ou type différent de 'weather', on sort
-    const layerDef = WMS_LAYERS.find(l => l.value === wmsLayer);
-    if (!wmsLayer || !layerDef || layerDef.type !== 'weather') return;
+    // Vérifier si une couche météo est active
+    const weatherLayer = activeWmsLayers.find(l => {
+      const def = WMS_LAYERS.find(d => d.value === l.value);
+      return def && def.type === 'weather';
+    });
+
+    if (!weatherLayer) return;
+
+    const opacity = weatherLayer.opacity || wmsOpacity;
+    const layerDef = WMS_LAYERS.find(l => l.value === weatherLayer.value);
+    if (!layerDef) return;
+
+    let isMounted = true;
 
     const loadWeatherData = async () => {
       try {
@@ -226,12 +299,10 @@ const Map = ({
         }
         weatherDataRef.current = data;
 
-        if (!data || data.length === 0) return;
+        if (!isMounted || !data || data.length === 0) return;
 
-        // Créer un groupe pour les marqueurs météo
         weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
 
-        // Ajouter les marqueurs pour chaque point
         data.forEach(point => {
           const temp = Math.round(point.temperature);
           const feelsLike = Math.round(point.apparentTemperature || point.temperature);
@@ -260,8 +331,8 @@ const Map = ({
             fillColor: getColorForTemperature(point.temperature),
             color: 'rgba(255,255,255,0.6)',
             weight: 2,
-            opacity: wmsOpacity + 0.2,
-            fillOpacity: wmsOpacity * 0.85,
+            opacity: opacity + 0.2,
+            fillOpacity: opacity * 0.85,
           }).bindPopup(popupContent);
 
           // Étiquette avec la température
@@ -278,13 +349,13 @@ const Map = ({
           weatherLayerRef.current.addLayer(label);
         });
 
-        console.log(`🌦️ ${data.length} points météo affichés`);
+        console.log(`🌦️ ${data.length} points météo affichés (opacité ${opacity})`);
 
       } catch (error) {
         console.error('❌ Erreur chargement météo:', error);
         // Fallback avec données simulées
         const fallbackData = getFallbackWeatherData();
-        if (fallbackData && fallbackData.length > 0) {
+        if (fallbackData && fallbackData.length > 0 && isMounted) {
           weatherLayerRef.current = L.layerGroup().addTo(mapRef.current);
           fallbackData.forEach(point => {
             const temp = Math.round(point.temperature);
@@ -293,8 +364,8 @@ const Map = ({
               fillColor: getColorForTemperature(point.temperature),
               color: 'rgba(255,255,255,0.6)',
               weight: 1.5,
-              opacity: wmsOpacity + 0.2,
-              fillOpacity: wmsOpacity * 0.8,
+              opacity: opacity + 0.2,
+              fillOpacity: opacity * 0.8,
             }).bindPopup(`🌡️ ${temp}°C (données simulées)`);
             weatherLayerRef.current.addLayer(marker);
           });
@@ -303,45 +374,15 @@ const Map = ({
     };
 
     loadWeatherData();
-  }, [wmsLayer, wmsOpacity]);
 
-  // Couches WMS GIBS
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    // Supprimer les anciennes couches GIBS
-    if (wmsTileRef.current) {
-      mapRef.current.removeLayer(wmsTileRef.current);
-      wmsTileRef.current = null;
-    }
-    if (wmsLayerRef.current) {
-      mapRef.current.removeLayer(wmsLayerRef.current);
-      wmsLayerRef.current = null;
-    }
-
-    const layerDef = WMS_LAYERS.find(l => l.value === wmsLayer);
-    if (!wmsLayer || !layerDef || layerDef.type !== 'gibs') return;
-
-    const gibsLayer = layerDef.layer;
-    console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${wmsOpacity})`);
-    wmsLayerRef.current = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
-      layers: gibsLayer,
-      format: 'image/png',
-      transparent: true,
-      opacity: wmsOpacity,
-      attribution: 'NASA GIBS',
-      crs: L.CRS.EPSG4326,
-      maxZoom: 10,
-      minZoom: 3,
-    }).addTo(mapRef.current);
-  }, [wmsLayer, wmsOpacity]);
-
-  // Mise à jour de l'opacité pour les couches GIBS
-  useEffect(() => {
-    if (wmsLayerRef.current && mapRef.current) {
-      wmsLayerRef.current.setOpacity(wmsOpacity);
-    }
-  }, [wmsOpacity]);
+    return () => {
+      isMounted = false;
+      if (weatherLayerRef.current && mapRef.current) {
+        mapRef.current.removeLayer(weatherLayerRef.current);
+        weatherLayerRef.current = null;
+      }
+    };
+  }, [activeWmsLayers, wmsOpacity]);
 
   // Redimensionnement
   useEffect(() => {
