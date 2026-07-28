@@ -5,13 +5,10 @@ import './Controls.css';
 
 // Liste des couches WMS disponibles
 const WMS_LAYERS = [
-  // --- Open-Meteo (tuiles météo) ---
-  { value: 'temperature_2m', label: '🌡️ Température', type: 'open-meteo' },
-  { value: 'precipitation', label: '🌧️ Précipitations', type: 'open-meteo' },
-  { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'open-meteo' },
-  { value: 'pressure_msl', label: '📊 Pression', type: 'open-meteo' },
-  { value: 'wind_speed_10m', label: '💨 Vitesse du vent', type: 'open-meteo' },
-  { value: 'relative_humidity_2m', label: '💧 Humidité', type: 'open-meteo' },
+  // --- Open-Meteo (météo en points) ---
+  { value: 'temperature', label: '🌡️ Température', type: 'weather' },
+  { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
+  { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
   // --- NASA GIBS (WMS) ---
   { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
   { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
@@ -40,8 +37,9 @@ const Controls = ({
   setShowWind,
   windLoading,
   darkMode,
-  wmsLayer,
-  setWmsLayer,
+  // Nouvelles props pour les couches multiples
+  activeWmsLayers,
+  setActiveWmsLayers,
   wmsOpacity,
   setWmsOpacity,
 }) => {
@@ -80,6 +78,38 @@ const Controls = ({
     const saved = localStorage.getItem('firms_map_key');
     if (saved && saved.length >= 32) setIsKeyValid(true);
   }, []);
+
+  // Gérer l'activation/désactivation d'une couche
+  const handleLayerToggle = (layer) => {
+    setActiveWmsLayers(prev => {
+      const exists = prev.find(l => l.value === layer.value);
+      if (exists) {
+        return prev.filter(l => l.value !== layer.value);
+      } else {
+        return [...prev, { ...layer, opacity: wmsOpacity }];
+      }
+    });
+  };
+
+  // Gérer le changement d'opacité d'une couche
+  const handleLayerOpacityChange = (layerValue, opacity) => {
+    setActiveWmsLayers(prev => 
+      prev.map(l => 
+        l.value === layerValue ? { ...l, opacity } : l
+      )
+    );
+  };
+
+  // Vérifier si une couche est active
+  const isLayerActive = (layerValue) => {
+    return activeWmsLayers.some(l => l.value === layerValue);
+  };
+
+  // Obtenir l'opacité d'une couche
+  const getLayerOpacity = (layerValue) => {
+    const layer = activeWmsLayers.find(l => l.value === layerValue);
+    return layer ? layer.opacity : wmsOpacity;
+  };
 
   return (
     <div className="controls">
@@ -229,50 +259,51 @@ const Controls = ({
         </div>
       </div>
 
-      {/* Couches WMS */}
+      {/* Couches WMS - Multi-sélection */}
       <div className="control-group">
-        <label className="control-label"><span className="icon">🗺️</span> Couche WMS</label>
-        <Select
-          options={WMS_LAYERS}
-          value={WMS_LAYERS.find(l => l.value === wmsLayer)}
-          onChange={(opt) => setWmsLayer(opt ? opt.value : null)}
-          placeholder="Aucune couche"
-          isClearable
-          className="react-select"
-          classNamePrefix="react-select"
-          isDisabled={loading}
-          theme={(theme) => ({
-            ...theme,
-            colors: {
-              ...theme.colors,
-              primary: '#2e86de',
-              primary75: '#54a0ff',
-              primary50: '#7fbfff',
-              primary25: '#d6eaf8',
-            }
-          })}
-        />
-        {wmsLayer && (
-          <div className="control-row" style={{ marginTop: '4px' }}>
-            <label className="control-label-small">Opacité</label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={wmsOpacity}
-              onChange={(e) => setWmsOpacity(parseFloat(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: '0.7rem', minWidth: '30px' }}>
-              {Math.round(wmsOpacity * 100)}%
-            </span>
-          </div>
-        )}
+        <label className="control-label">
+          <span className="icon">🗺️</span> Couches WMS
+        </label>
+        <div className="wms-layer-list">
+          {WMS_LAYERS.map((layer) => (
+            <div key={layer.value} className="wms-layer-item">
+              <label className="filter-label wms-layer-label">
+                <input
+                  type="checkbox"
+                  checked={isLayerActive(layer.value)}
+                  onChange={() => handleLayerToggle(layer)}
+                  disabled={loading}
+                />
+                <span className="wms-layer-name">{layer.label}</span>
+                <span className="wms-layer-type">
+                  {layer.type === 'gibs' ? '🌍' : '🌦️'}
+                </span>
+              </label>
+              {isLayerActive(layer.value) && (
+                <div className="wms-layer-opacity">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={getLayerOpacity(layer.value)}
+                    onChange={(e) => handleLayerOpacityChange(
+                      layer.value,
+                      parseFloat(e.target.value)
+                    )}
+                  />
+                  <span className="opacity-value">
+                    {Math.round(getLayerOpacity(layer.value) * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
         <small className="control-help">
-          {wmsLayer && WMS_LAYERS.find(l => l.value === wmsLayer)?.type === 'gibs'
-            ? 'Données NASA GIBS • MODIS'
-            : 'Données Open‑Meteo • Mise à jour horaire'}
+          {activeWmsLayers.length > 0 
+            ? `✅ ${activeWmsLayers.length} couche(s) active(s)`
+            : 'Aucune couche active'}
         </small>
       </div>
 
@@ -316,4 +347,4 @@ const Controls = ({
   );
 };
 
-export default Controls; // <-- Très important : export par défaut
+export default Controls;
