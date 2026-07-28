@@ -2,136 +2,101 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 
-// Vérification robuste de la disponibilité de L.heatLayer
+// Récupération de la liste des couches WMS depuis Controls (on peut la recopier ici ou l'importer)
+// Pour éviter un import circulaire, on la redéfinit (ou on pourrait la placer dans un fichier séparé)
+const WMS_LAYERS = [
+  { value: 'temperature_2m', label: '🌡️ Température', type: 'open-meteo' },
+  { value: 'precipitation', label: '🌧️ Précipitations', type: 'open-meteo' },
+  { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'open-meteo' },
+  { value: 'pressure_msl', label: '📊 Pression', type: 'open-meteo' },
+  { value: 'wind_speed_10m', label: '💨 Vitesse du vent', type: 'open-meteo' },
+  { value: 'relative_humidity_2m', label: '💧 Humidité', type: 'open-meteo' },
+  { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
+  { value: 'lst_day', label: '🌡️ Température surface (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
+  { value: 'lst_night', label: '🌡️ Température surface (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
+];
+
+// Vérification des plugins
 const isHeatLayerAvailable = () => {
-  try {
-    return typeof L !== 'undefined' && typeof L.heatLayer === 'function';
-  } catch (e) {
-    return false;
-  }
+  try { return typeof L !== 'undefined' && typeof L.heatLayer === 'function'; } catch(e) { return false; }
 };
-
 const isVelocityLayerAvailable = () => {
-  try {
-    return typeof L !== 'undefined' && typeof L.velocityLayer === 'function';
-  } catch (e) {
-    return false;
-  }
+  try { return typeof L !== 'undefined' && typeof L.velocityLayer === 'function'; } catch(e) { return false; }
 };
 
-// Fonction pour charger dynamiquement leaflet.heat
+// Chargement dynamique de leaflet.heat
 const loadHeatPlugin = () => {
   return new Promise((resolve, reject) => {
-    if (isHeatLayerAvailable()) {
-      resolve();
-      return;
-    }
-    
+    if (isHeatLayerAvailable()) return resolve();
     console.log('📦 Tentative de chargement dynamique de leaflet.heat...');
-    
-    // Essayer plusieurs CDN
     const cdnUrls = [
       'https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js',
       'https://cdn.jsdelivr.net/npm/leaflet-heat@0.2.0/leaflet-heat.js',
       'https://unpkg.com/leaflet-heat@0.2.0/dist/leaflet-heat.js'
     ];
-    
-    let currentIndex = 0;
-    
+    let index = 0;
     const tryLoad = () => {
-      if (currentIndex >= cdnUrls.length) {
-        reject(new Error('Tous les CDN ont échoué'));
-        return;
-      }
-      
+      if (index >= cdnUrls.length) return reject(new Error('Tous les CDN ont échoué'));
       const script = document.createElement('script');
-      script.src = cdnUrls[currentIndex];
+      script.src = cdnUrls[index];
       script.async = true;
-      
       script.onload = () => {
         if (isHeatLayerAvailable()) {
-          console.log(`✅ leaflet.heat chargé depuis ${cdnUrls[currentIndex]}`);
+          console.log(`✅ leaflet.heat chargé depuis ${cdnUrls[index]}`);
           resolve();
-        } else {
-          currentIndex++;
-          tryLoad();
-        }
+        } else { index++; tryLoad(); }
       };
-      
-      script.onerror = () => {
-        console.warn(`⚠️ Échec du chargement depuis ${cdnUrls[currentIndex]}`);
-        currentIndex++;
-        tryLoad();
-      };
-      
+      script.onerror = () => { index++; tryLoad(); };
       document.head.appendChild(script);
     };
-    
     tryLoad();
   });
 };
 
-const Map = ({ 
-  fires, 
-  showHeatmap, 
-  showSdis, 
-  darkMode, 
+const Map = ({
+  fires,
+  showHeatmap,
+  showSdis,
+  darkMode,
   alerts,
   showWind = false,
   windData = null,
-  onWindToggle 
+  onWindToggle,
+  wmsLayer = null,
+  wmsOpacity = 0.6,
 }) => {
   const mapRef = useRef(null);
   const markersRef = useRef(null);
   const heatmapRef = useRef(null);
   const alertRefs = useRef([]);
   const velocityRef = useRef(null);
-  const heatLoadedRef = useRef(false);
+  const wmsTileRef = useRef(null);
+  const wmsLayerRef = useRef(null);
 
+  // Initialisation de la carte
   useEffect(() => {
-    // Initialiser la carte
     if (!mapRef.current) {
       console.log('🗺️ Initialisation de la carte...');
-      
-      mapRef.current = L.map('map', {
-        center: [46.6, 2.2],
-        zoom: 6,
-        zoomControl: true
-      });
-
+      mapRef.current = L.map('map', { center: [46.6, 2.2], zoom: 6, zoomControl: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(mapRef.current);
-
       markersRef.current = L.layerGroup().addTo(mapRef.current);
-      
       console.log('✅ Carte initialisée');
     }
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
   }, []);
 
-  // Appliquer le dark mode
+  // Redimensionnement
   useEffect(() => {
-    if (mapRef.current) {
-      setTimeout(() => mapRef.current.invalidateSize(), 100);
-    }
+    if (mapRef.current) setTimeout(() => mapRef.current.invalidateSize(), 100);
   }, [darkMode]);
 
-  // Mettre à jour les marqueurs
+  // Marqueurs de feux
   useEffect(() => {
     if (!markersRef.current || !mapRef.current) return;
-
     markersRef.current.clearLayers();
-
     if (fires && fires.length > 0) {
-      console.log(`📍 Ajout de ${fires.length} marqueurs de feux`);
-      
       const fireIcon = L.divIcon({
         html: '<div class="fire-marker">🔥</div>',
         className: 'fire-marker-container',
@@ -139,37 +104,20 @@ const Map = ({
         iconAnchor: [12, 12],
         popupAnchor: [0, -12]
       });
-
       fires.forEach(fire => {
-        const popupContent = `
-          <strong>🔥 Feu</strong><br/>
-          <b>Lat:</b> ${fire.latitude.toFixed(4)}<br/>
-          <b>Lon:</b> ${fire.longitude.toFixed(4)}<br/>
-          <b>Confiance:</b> ${fire.confidence || 'N/A'}<br/>
-          <b>FRP:</b> ${(fire.frp || 0).toFixed(1)} MW<br/>
-          <b>Date:</b> ${fire.acq_date || 'N/A'}<br/>
-          ${fire.type ? `<b>Type:</b> ${fire.type}` : ''}
-        `;
-
-        const marker = L.marker([fire.latitude, fire.longitude], { icon: fireIcon })
-          .bindPopup(popupContent);
+        const popup = `<strong>🔥 Feu</strong><br/><b>Lat:</b> ${fire.latitude.toFixed(4)}<br/><b>Lon:</b> ${fire.longitude.toFixed(4)}<br/><b>Confiance:</b> ${fire.confidence || 'N/A'}<br/><b>FRP:</b> ${(fire.frp || 0).toFixed(1)} MW<br/><b>Date:</b> ${fire.acq_date || 'N/A'}<br/>${fire.type ? `<b>Type:</b> ${fire.type}` : ''}`;
+        const marker = L.marker([fire.latitude, fire.longitude], { icon: fireIcon }).bindPopup(popup);
         markersRef.current.addLayer(marker);
       });
-
-      // Ajuster la vue si c'est la première fois
       if (fires.length > 0 && !mapRef.current._initialized) {
         const bounds = L.latLngBounds(fires.map(f => [f.latitude, f.longitude]));
         mapRef.current.fitBounds(bounds, { padding: [30, 30] });
         mapRef.current._initialized = true;
       }
     }
-
-    // Ajouter les alertes (cercles)
-    alertRefs.current.forEach(circle => {
-      if (mapRef.current) mapRef.current.removeLayer(circle);
-    });
+    // Alertes
+    alertRefs.current.forEach(circle => { if (mapRef.current) mapRef.current.removeLayer(circle); });
     alertRefs.current = [];
-
     if (alerts && alerts.length > 0) {
       alerts.forEach(alert => {
         const circle = L.circle([alert.lat, alert.lng], {
@@ -183,74 +131,38 @@ const Map = ({
         alertRefs.current.push(circle);
       });
     }
-
   }, [fires, alerts]);
 
-  // Mettre à jour la heatmap avec chargement automatique du plugin
+  // Heatmap
   useEffect(() => {
     if (!mapRef.current) return;
-
     const updateHeatmap = async () => {
-      // Supprimer l'ancienne heatmap
-      if (heatmapRef.current) {
-        mapRef.current.removeLayer(heatmapRef.current);
-        heatmapRef.current = null;
-      }
-
-      if (!showHeatmap || !fires || fires.length === 0) {
-        return;
-      }
-
-      // Vérifier si le plugin est disponible
+      if (heatmapRef.current) { mapRef.current.removeLayer(heatmapRef.current); heatmapRef.current = null; }
+      if (!showHeatmap || !fires || fires.length === 0) return;
       if (!isHeatLayerAvailable()) {
         console.warn('⚠️ L.heatLayer non disponible, tentative de chargement...');
-        try {
-          await loadHeatPlugin();
-          heatLoadedRef.current = true;
-        } catch (error) {
-          console.error('❌ Échec du chargement de leaflet.heat:', error);
-          return;
-        }
+        try { await loadHeatPlugin(); } catch (error) { console.error('❌ Échec du chargement de leaflet.heat:', error); return; }
       }
-
-      // Vérifier à nouveau après le chargement
       if (isHeatLayerAvailable()) {
         console.log(`🔥 Création de la heatmap avec ${fires.length} points`);
-        
         const points = fires.map(f => [f.latitude, f.longitude, f.frp || 1]);
         heatmapRef.current = L.heatLayer(points, {
           radius: 25,
           blur: 15,
           maxZoom: 10,
-          gradient: {
-            0.4: 'blue',
-            0.6: 'cyan',
-            0.7: 'lime',
-            0.8: 'yellow',
-            1.0: 'red'
-          }
+          gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' }
         }).addTo(mapRef.current);
-      } else {
-        console.error('❌ L.heatLayer toujours non disponible après chargement');
       }
     };
-
     updateHeatmap();
   }, [showHeatmap, fires]);
 
-  // Gérer la couche vent
+  // Vent
   useEffect(() => {
     if (!mapRef.current) return;
-
-    // Supprimer l'ancienne couche vent
-    if (velocityRef.current) {
-      mapRef.current.removeLayer(velocityRef.current);
-      velocityRef.current = null;
-    }
-
+    if (velocityRef.current) { mapRef.current.removeLayer(velocityRef.current); velocityRef.current = null; }
     if (showWind && windData && isVelocityLayerAvailable()) {
       console.log('🌬️ Création de la couche vent...');
-      
       try {
         velocityRef.current = L.velocityLayer({
           displayValues: true,
@@ -260,26 +172,75 @@ const Map = ({
           velocityType: 'wind',
           colorScale: ['#003366', '#0066cc', '#0099ff', '#66ccff', '#ffff00', '#ff9900', '#ff3300', '#990000']
         }).addTo(mapRef.current);
-        
         console.log('✅ Couche vent ajoutée');
       } catch (error) {
         console.error('❌ Erreur lors de l\'ajout de la couche vent:', error);
       }
     } else if (showWind && !windData) {
       console.warn('🌬️ Aucune donnée vent disponible');
-      if (onWindToggle) {
-        onWindToggle(true);
-      }
+      if (onWindToggle) onWindToggle(true);
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Redimensionner la carte
+  // Couches WMS (Open-Meteo ou NASA GIBS)
   useEffect(() => {
-    const handleResize = () => {
-      if (mapRef.current) {
-        setTimeout(() => mapRef.current.invalidateSize(), 100);
-      }
-    };
+    if (!mapRef.current) return;
+
+    // Supprimer les anciennes couches
+    if (wmsTileRef.current) {
+      mapRef.current.removeLayer(wmsTileRef.current);
+      wmsTileRef.current = null;
+    }
+    if (wmsLayerRef.current) {
+      mapRef.current.removeLayer(wmsLayerRef.current);
+      wmsLayerRef.current = null;
+    }
+
+    if (!wmsLayer) return;
+
+    const layerDef = WMS_LAYERS.find(l => l.value === wmsLayer);
+    if (!layerDef) return;
+
+    if (layerDef.type === 'open-meteo') {
+      const url = `https://tile.open-meteo.com/{z}/{x}/{y}/${wmsLayer}.png?time=latest`;
+      console.log(`🌦️ Ajout de la couche Open-Meteo: ${wmsLayer} (opacité ${wmsOpacity})`);
+      wmsTileRef.current = L.tileLayer(url, {
+        opacity: wmsOpacity,
+        attribution: 'Météo © Open‑Meteo',
+        maxZoom: 8,
+        minZoom: 3,
+        tileSize: 256,
+        crossOrigin: true,
+      }).addTo(mapRef.current);
+    } else if (layerDef.type === 'gibs') {
+      const gibsLayer = layerDef.layer;
+      console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${wmsOpacity})`);
+      wmsLayerRef.current = L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi', {
+        layers: gibsLayer,
+        format: 'image/png',
+        transparent: true,
+        opacity: wmsOpacity,
+        attribution: 'NASA GIBS',
+        crs: L.CRS.EPSG4326,
+        maxZoom: 10,
+        minZoom: 3,
+      }).addTo(mapRef.current);
+    }
+  }, [wmsLayer, wmsOpacity]);
+
+  // Mise à jour de l'opacité
+  useEffect(() => {
+    if (wmsTileRef.current && mapRef.current) {
+      wmsTileRef.current.setOpacity(wmsOpacity);
+    }
+    if (wmsLayerRef.current && mapRef.current) {
+      wmsLayerRef.current.setOpacity(wmsOpacity);
+    }
+  }, [wmsOpacity]);
+
+  // Redimensionnement
+  useEffect(() => {
+    const handleResize = () => { if (mapRef.current) setTimeout(() => mapRef.current.invalidateSize(), 100); };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
