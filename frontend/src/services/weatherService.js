@@ -23,7 +23,7 @@ const WEATHER_CONFIG = {
     { lat: 49.4944, lon: 0.1071 }, // Le Havre
     { lat: 50.7258, lon: 1.6136 }, // Boulogne-sur-Mer
     { lat: 43.5843, lon: 3.0979 }, // Béziers
-    { lat: 48.1364, lon: -1.6455 }, // Rennes
+    { lat: 48.1364, lon: -1.6455 }, // Rennes (doublon, on garde)
   ],
   timeout: 10000
 };
@@ -76,6 +76,7 @@ export const fetchWeatherData = async () => {
 
 const fetchWeatherPoint = async (lat, lon) => {
   try {
+    // Utiliser current au lieu de hourly
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m&timezone=Europe/Paris`;
 
     const response = await axios.get(url, { timeout: WEATHER_CONFIG.timeout });
