@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 
-// Récupération de la liste des couches WMS
+// Liste des couches WMS disponibles
 const WMS_LAYERS = [
   { value: 'temperature_2m', label: '🌡️ Température', type: 'open-meteo' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'open-meteo' },
@@ -10,9 +10,10 @@ const WMS_LAYERS = [
   { value: 'pressure_msl', label: '📊 Pression', type: 'open-meteo' },
   { value: 'wind_speed_10m', label: '💨 Vitesse du vent', type: 'open-meteo' },
   { value: 'relative_humidity_2m', label: '💧 Humidité', type: 'open-meteo' },
+  // NASA GIBS
   { value: 'ndvi', label: '🌿 Végétation (NDVI)', type: 'gibs', layer: 'MOD13A2_NDVI' },
-  { value: 'lst_day', label: '🌡️ Température surface (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
-  { value: 'lst_night', label: '🌡️ Température surface (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
+  { value: 'lst_day', label: '🌡️ LST (jour)', type: 'gibs', layer: 'MOD11A1_LST_Day_1km' },
+  { value: 'lst_night', label: '🌡️ LST (nuit)', type: 'gibs', layer: 'MOD11A1_LST_Night_1km' },
 ];
 
 // Vérification des plugins
@@ -181,7 +182,7 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // Couches WMS (Open-Meteo ou NASA GIBS)
+  // Couches WMS (Open-Meteo via tuiles raster)
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -201,8 +202,8 @@ const Map = ({
     if (!layerDef) return;
 
     if (layerDef.type === 'open-meteo') {
-      // URL Open-Meteo corrigée - Utilisation de l'API WMS standard
-      const url = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${wmsLayer}.png?time=latest`;
+      // URL correcte des tuiles Open-Meteo
+      const url = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${wmsLayer}.png`;
       console.log(`🌦️ Ajout de la couche Open-Meteo: ${wmsLayer} (opacité ${wmsOpacity})`);
       wmsTileRef.current = L.tileLayer(url, {
         opacity: wmsOpacity,
@@ -211,6 +212,8 @@ const Map = ({
         minZoom: 3,
         tileSize: 256,
         crossOrigin: true,
+        // Ajout du paramètre time pour les données les plus récentes
+        time: 'latest'
       }).addTo(mapRef.current);
     } else if (layerDef.type === 'gibs') {
       const gibsLayer = layerDef.layer;
