@@ -12,19 +12,19 @@ const WMS_LAYERS = [
   // --- Open-Meteo (tuiles) ---
   { 
     value: 'temperature_map', 
-    label: '🌡️ Température (tuiles Open-Meteo)', 
+    label: '🌡️ Température (tuiles)', 
     type: 'openmeteo_tile',
     layer: 'temperature_2m'
   },
   { 
     value: 'precipitation_map', 
-    label: '🌧️ Précipitations (tuiles Open-Meteo)', 
+    label: '🌧️ Précipitations (tuiles)', 
     type: 'openmeteo_tile',
     layer: 'precipitation'
   },
   { 
     value: 'cloudcover_map', 
-    label: '☁️ Couverture nuageuse (tuiles Open-Meteo)', 
+    label: '☁️ Couverture nuageuse (tuiles)', 
     type: 'openmeteo_tile',
     layer: 'cloudcover'
   },
@@ -65,6 +65,30 @@ const loadHeatPlugin = () => {
       document.head.appendChild(script);
     };
     tryLoad();
+  });
+};
+
+// Fonction pour créer une couche Open-Meteo
+const createOpenMeteoLayer = (layerName, opacity) => {
+  // Mapping des noms de couches
+  const layerMap = {
+    'temperature_2m': 'temperature_2m',
+    'precipitation': 'precipitation',
+    'cloudcover': 'cloudcover',
+  };
+
+  const actualLayer = layerMap[layerName] || layerName;
+  
+  // URL des tuiles Open-Meteo
+  const tileUrl = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${actualLayer}.png`;
+  
+  return L.tileLayer(tileUrl, {
+    opacity: opacity,
+    attribution: 'Météo © Open-Meteo',
+    maxZoom: 8,
+    minZoom: 3,
+    tileSize: 256,
+    crossOrigin: true,
   });
 };
 
@@ -285,7 +309,7 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES WMS (Open-Meteo tuiles) ===
+  // === GESTION DES COUCHES WMS ===
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -318,31 +342,49 @@ const Map = ({
       // === COUCHES OPEN-METEO TILES ===
       if (fullDef.type === 'openmeteo_tile') {
         const layerName = fullDef.layer;
-        const tileUrl = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${layerName}.png`;
-        
         console.log(`🌦️ Ajout de la couche Open-Meteo: ${layerName}`);
         
-        const layer = L.tileLayer(tileUrl, {
-          opacity: opacity,
-          attribution: 'Open-Meteo',
-          maxZoom: 8,
-          minZoom: 3,
-          tileSize: 256,
-          crossOrigin: true,
+        const layer = createOpenMeteoLayer(layerName, opacity);
+
+        // Événements pour le débogage
+        let tileErrorCount = 0;
+        let tileLoadCount = 0;
+
+        layer.on('loading', () => {
+          console.log(`⏳ Chargement des tuiles ${layerName}...`);
         });
 
-        layer.on('loading', () => console.log(`⏳ Chargement ${layerName}...`));
-        layer.on('load', () => console.log(`✅ ${layerName} chargé`));
-        layer.on('tileerror', (err) => console.error(`❌ Erreur ${layerName}:`, err));
+        layer.on('load', () => {
+          console.log(`✅ ${layerName} chargé avec succès (${tileLoadCount} tuiles)`);
+        });
+
+        layer.on('tileload', () => {
+          tileLoadCount++;
+          if (tileLoadCount % 10 === 0) {
+            console.log(`📊 ${layerName}: ${tileLoadCount} tuiles chargées`);
+          }
+        });
+
+        layer.on('tileerror', (error) => {
+          tileErrorCount++;
+          console.error(`❌ Erreur tuile ${layerName} #${tileErrorCount}:`, error);
+          if (error.tile) {
+            console.error(`   Tuile URL: ${error.tile.src}`);
+          }
+        });
 
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${layerName} ajoutée`);
-        return;
-      }
+        console.log(`✅ Couche ${layerName} ajoutée à la carte`);
 
-      // === COUCHES MÉTÉO (points) ===
-      // Gérées dans le useEffect séparé
+        // Forcer un redimensionnement
+        setTimeout(() => {
+          if (mapRef.current) {
+            mapRef.current.invalidateSize();
+            console.log(`🔄 Carte redimensionnée après ajout de ${layerName}`);
+          }
+        }, 500);
+      }
     });
 
     return () => {
