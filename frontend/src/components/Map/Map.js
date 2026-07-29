@@ -12,21 +12,21 @@ const WMS_LAYERS = [
   // --- NASA GIBS (WMS) avec paramètres spécifiques ---
   { 
     value: 'ndvi', 
-    label: '🌿 Végétation (NDVI)', 
+    label: '🌿 Végétation (NDVI - MODIS)', 
     type: 'gibs', 
     layer: 'MOD13A2_NDVI',
     options: { styles: 'palette/ndvi' }
   },
   { 
     value: 'lst_day', 
-    label: '🌡️ LST (jour)', 
+    label: '🌡️ LST Jour (MODIS - 1km)', 
     type: 'gibs', 
     layer: 'MOD11A1_LST_Day_1km',
     options: { styles: 'palette/thermal' }
   },
   { 
     value: 'lst_night', 
-    label: '🌡️ LST (nuit)', 
+    label: '🌡️ LST Nuit (MODIS - 1km)', 
     type: 'gibs', 
     layer: 'MOD11A1_LST_Night_1km',
     options: { styles: 'palette/thermal' }
@@ -92,7 +92,7 @@ const Map = ({
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
 
-  // Fonction pour obtenir la couleur selon la température
+  // Fonctions météo (getColorForTemperature, getWeatherIcon, etc.) inchangées
   const getColorForTemperature = (temp) => {
     if (temp > 30) return '#e74c3c';
     if (temp > 25) return '#e67e22';
@@ -103,7 +103,6 @@ const Map = ({
     return '#8e44ad';
   };
 
-  // Fonction pour obtenir l'icône météo selon le type de couche
   const getWeatherIcon = (weatherType, precipitation, cloudCover) => {
     if (weatherType === 'precipitation') {
       if (precipitation > 5) return '⛈️';
@@ -119,7 +118,6 @@ const Map = ({
     return '☀️';
   };
 
-  // Fonction pour obtenir la couleur selon l'intensité des précipitations
   const getPrecipitationColor = (precipitation) => {
     if (precipitation > 5) return '#8e44ad';
     if (precipitation > 2) return '#e74c3c';
@@ -129,7 +127,6 @@ const Map = ({
     return '#2ecc71';
   };
 
-  // Fonction pour obtenir la taille du marqueur selon l'intensité
   const getPrecipitationSize = (precipitation) => {
     if (precipitation > 5) return 22;
     if (precipitation > 2) return 18;
@@ -223,24 +220,69 @@ const Map = ({
     updateHeatmap();
   }, [showHeatmap, fires]);
 
-  // Vent
+  // === COUCHE VENT (CORRIGÉE AVEC LOGS) ===
   useEffect(() => {
+    console.log('🔄 useEffect vent exécuté', { 
+      showWind, 
+      windData: !!windData, 
+      isVelocityAvailable: isVelocityLayerAvailable() 
+    });
+
     if (!mapRef.current) return;
-    if (velocityRef.current) { mapRef.current.removeLayer(velocityRef.current); velocityRef.current = null; }
-    if (showWind && windData && isVelocityLayerAvailable()) {
-      console.log('🌬️ Création de la couche vent...');
-      try {
-        velocityRef.current = L.velocityLayer({
-          displayValues: true,
-          data: windData,
-          opacity: 0.8,
-          maxVelocity: 25,
-          velocityType: 'wind',
-          colorScale: ['#003366', '#0066cc', '#0099ff', '#66ccff', '#ffff00', '#ff9900', '#ff3300', '#990000']
-        }).addTo(mapRef.current);
-        console.log('✅ Couche vent ajoutée');
-      } catch (error) {
-        console.error('❌ Erreur lors de l\'ajout de la couche vent:', error);
+
+    // Supprimer l'ancienne couche vent
+    if (velocityRef.current) {
+      mapRef.current.removeLayer(velocityRef.current);
+      velocityRef.current = null;
+    }
+
+    // Si la couche vent est activée et que des données sont disponibles
+    if (showWind && windData) {
+      if (isVelocityLayerAvailable()) {
+        console.log('🌬️ Création de la couche vent avec données:', windData);
+        try {
+          velocityRef.current = L.velocityLayer({
+            displayValues: true,
+            data: windData,
+            opacity: 0.8,
+            maxVelocity: 25,
+            velocityType: 'wind',
+            colorScale: ['#003366', '#0066cc', '#0099ff', '#66ccff', '#ffff00', '#ff9900', '#ff3300', '#990000']
+          }).addTo(mapRef.current);
+          console.log('✅ Couche vent ajoutée avec succès');
+        } catch (error) {
+          console.error('❌ Erreur lors de l\'ajout de la couche vent:', error);
+        }
+      } else {
+        console.warn('🌬️ Plugin Leaflet-Velocity non disponible');
+        // Tenter de charger dynamiquement le plugin
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet-velocity/0.2.0/leaflet-velocity.min.js';
+        script.onload = () => {
+          console.log('✅ Leaflet-Velocity chargé dynamiquement, réessai...');
+          // Réessayer d'ajouter la couche après un court délai
+          setTimeout(() => {
+            if (showWind && windData && isVelocityLayerAvailable() && mapRef.current) {
+              try {
+                velocityRef.current = L.velocityLayer({
+                  displayValues: true,
+                  data: windData,
+                  opacity: 0.8,
+                  maxVelocity: 25,
+                  velocityType: 'wind',
+                  colorScale: ['#003366', '#0066cc', '#0099ff', '#66ccff', '#ffff00', '#ff9900', '#ff3300', '#990000']
+                }).addTo(mapRef.current);
+                console.log('✅ Couche vent ajoutée après chargement dynamique');
+              } catch (err) {
+                console.error('❌ Erreur lors de l\'ajout après chargement dynamique:', err);
+              }
+            }
+          }, 500);
+        };
+        script.onerror = () => {
+          console.error('❌ Échec du chargement dynamique de Leaflet-Velocity');
+        };
+        document.head.appendChild(script);
       }
     } else if (showWind && !windData) {
       console.warn('🌬️ Aucune donnée vent disponible');
@@ -248,13 +290,10 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // ============================================================
-  // GESTION DES COUCHES GIBS WMS (NDVI, LST jour, LST nuit)
-  // ============================================================
+  // Gestion des couches GIBS WMS
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Identifier les couches GIBS actives
     const activeGibsValues = activeWmsLayers
       .filter(l => {
         const def = WMS_LAYERS.find(d => d.value === l.value);
@@ -262,7 +301,6 @@ const Map = ({
       })
       .map(l => l.value);
 
-    // Supprimer les couches GIBS qui ne sont plus actives
     Object.keys(wmsLayersRef.current).forEach(key => {
       if (!activeGibsValues.includes(key)) {
         if (wmsLayersRef.current[key] && mapRef.current) {
@@ -272,7 +310,6 @@ const Map = ({
       }
     });
 
-    // Ajouter ou mettre à jour les couches GIBS actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
       if (!fullDef || fullDef.type !== 'gibs') return;
@@ -280,7 +317,6 @@ const Map = ({
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
 
-      // Si la couche existe déjà, mettre à jour l'opacité
       if (existingLayer) {
         existingLayer.setOpacity(opacity);
         return;
@@ -289,32 +325,26 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer} (opacité ${opacity})`);
       
-      // Configuration WMS pour GIBS
       const wmsOptions = {
         layers: gibsLayer,
         format: 'image/png',
         transparent: true,
         opacity: opacity,
         attribution: 'NASA GIBS',
-        crs: L.CRS.EPSG4326, // Système de coordonnées géographique
+        crs: L.CRS.EPSG4326,
         maxZoom: 10,
         minZoom: 3,
         tileSize: 512,
         zoomOffset: 0,
-        // Paramètres spécifiques
         styles: fullDef.options?.styles || '',
       };
 
-      // Pour les couches LST, ajouter des paramètres spécifiques
       if (gibsLayer.includes('LST')) {
-        // Utiliser la date d'hier pour avoir des données disponibles (MODIS)
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const dateStr = yesterday.toISOString().slice(0, 10);
-        wmsOptions.time = dateStr;
-        console.log(`📅 Date LST: ${dateStr}`);
+        wmsOptions.time = yesterday.toISOString().slice(0, 10);
+        console.log(`📅 Date LST: ${wmsOptions.time}`);
       } else if (gibsLayer === 'MOD13A2_NDVI') {
-        // NDVI - utiliser une date plus récente (16 jours max)
         const twoWeeksAgo = new Date();
         twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
         wmsOptions.time = twoWeeksAgo.toISOString().slice(0, 10);
@@ -342,7 +372,6 @@ const Map = ({
       }
     });
 
-    // Forcer un redimensionnement de la carte après l'ajout des couches
     setTimeout(() => {
       if (mapRef.current) {
         mapRef.current.invalidateSize();
@@ -364,13 +393,11 @@ const Map = ({
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Supprimer l'ancienne couche météo
     if (weatherLayerRef.current) {
       mapRef.current.removeLayer(weatherLayerRef.current);
       weatherLayerRef.current = null;
     }
 
-    // Vérifier si une couche météo est active
     const weatherLayer = activeWmsLayers.find(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'weather';
