@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.css" />
+  
+  <!-- Plugin Leaflet.OpenMeteo -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-openmeteo@1.0.0/dist/leaflet-openmeteo.min.css" />
 </head>
 <body>
   <noscript>
@@ -26,27 +29,10 @@
   <!-- 2. Leaflet.heat -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
   
-  <!-- 3. Leaflet-Velocity (principal) -->
+  <!-- 3. Leaflet-Velocity -->
   <script src="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
   
-  <!-- 4. Fallback pour Leaflet-Velocity -->
-  <script>
-    (function() {
-      if (typeof L !== 'undefined' && typeof L.velocityLayer === 'function') {
-        console.log('✅ Leaflet-Velocity chargé (principal)');
-        return;
-      }
-      console.warn('⚠️ Leaflet-Velocity non chargé, tentative de chargement depuis un CDN alternatif...');
-      var script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet-velocity/0.2.0/leaflet-velocity.min.js';
-      script.onload = function() {
-        console.log('✅ Leaflet-Velocity chargé depuis fallback (cdnjs)');
-      };
-      script.onerror = function() {
-        console.error('❌ Échec du chargement de Leaflet-Velocity depuis fallback');
-      };
-      document.head.appendChild(script);
-    })();
-  </script>
+  <!-- 4. Leaflet.OpenMeteo -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-openmeteo@1.0.0/dist/leaflet-openmeteo.min.js"></script>
 </body>
 </html>
