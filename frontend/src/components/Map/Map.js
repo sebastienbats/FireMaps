@@ -289,7 +289,7 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES GIBS WMS (NDVI, LST) ===
+  // === GESTION DES COUCHES GIBS WMS (NDVI, LST) AVEC LOGS DÉTAILLÉS ===
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -329,83 +329,138 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
 
-      // Configuration WMS de base
+      // === CONFIGURATION WMS DE BASE ===
       const wmsOptions = {
         layers: gibsLayer,
         format: 'image/png',
         transparent: true,
         opacity: opacity,
         attribution: 'NASA GIBS',
-        crs: L.CRS.EPSG4326,
         maxZoom: 10,
         minZoom: 3,
         tileSize: 512,
         zoomOffset: 0,
         version: '1.3.0',
-        styles: fullDef.options?.styles || '',
+        styles: '',
+        crs: L.CRS.EPSG3857,
       };
 
-      // Gestion spécifique des dates
+      // === GESTION SPÉCIFIQUE DES DATES ===
       if (gibsLayer === 'MOD13A2_NDVI') {
-        const now = new Date();
-        const startDate = new Date(now);
-        startDate.setDate(startDate.getDate() - 30);
-        wmsOptions.time = `${startDate.toISOString().slice(0, 10)}/${now.toISOString().slice(0, 10)}`;
-        console.log(`📅 NDVI time range: ${wmsOptions.time}`);
+        // NDVI : date unique 21 jours en arrière (latence de 2-3 semaines)
+        const date = new Date();
+        date.setDate(date.getDate() - 21);
+        wmsOptions.time = date.toISOString().slice(0, 10);
+        wmsOptions.styles = fullDef.options?.styles || 'palette/ndvi';
+        console.log(`📅 NDVI date (unique): ${wmsOptions.time}`);
       } else if (gibsLayer.includes('LST')) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 2);
-        wmsOptions.time = yesterday.toISOString().slice(0, 10);
+        // LST : date 2 jours en arrière (latence de 1-2 jours)
+        const date = new Date();
+        date.setDate(date.getDate() - 2);
+        wmsOptions.time = date.toISOString().slice(0, 10);
+        wmsOptions.styles = fullDef.options?.styles || 'palette/thermal';
         console.log(`📅 LST date: ${wmsOptions.time}`);
       }
 
-      console.log(`📡 WMS Options:`, {
+      console.log(`📡 Paramètres WMS GIBS:`, {
         layers: wmsOptions.layers,
         styles: wmsOptions.styles,
         time: wmsOptions.time || 'non spécifié',
+        crs: 'EPSG:3857',
         opacity: wmsOptions.opacity,
-        crs: 'EPSG:4326'
+        version: wmsOptions.version
       });
 
       try {
+        // Créer la couche WMS
         const layer = L.tileLayer.wms(
           'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
           wmsOptions
         );
 
-        layer.on('loading', () => console.log(`⏳ Chargement ${gibsLayer}...`));
-        layer.on('load', () => console.log(`✅ ${gibsLayer} chargé`));
-        layer.on('tileerror', (err) => {
-          console.error(`❌ Erreur tuile ${gibsLayer}:`, err);
-          if (gibsLayer === 'MOD13A2_NDVI' && wmsOptions.time) {
-            console.log('🔄 Fallback NDVI: tentative sans time...');
-            const fallbackOptions = { ...wmsOptions };
-            delete fallbackOptions.time;
+        // === ÉVÉNEMENTS POUR LE DÉBOGAGE ===
+        let tileErrorCount = 0;
+        let tileLoadCount = 0;
+
+        layer.on('loading', () => {
+          console.log(`⏳ Chargement des tuiles ${gibsLayer}...`);
+        });
+
+        layer.on('load', () => {
+          console.log(`✅ ${gibsLayer} chargé avec succès (${tileLoadCount} tuiles chargées)`);
+        });
+
+        layer.on('tileload', () => {
+          tileLoadCount++;
+          if (tileLoadCount % 10 === 0) {
+            console.log(`📊 ${gibsLayer}: ${tileLoadCount} tuiles chargées`);
+          }
+        });
+
+        layer.on('tileerror', (error) => {
+          tileErrorCount++;
+          console.error(`❌ Erreur tuile ${gibsLayer} #${tileErrorCount}:`, error);
+          console.error(`   Tuile URL: ${error.tile ? error.tile.src : 'inconnue'}`);
+          
+          // Si trop d'erreurs, tenter un fallback
+          if (tileErrorCount > 10 && mapRef.current) {
+            console.log(`🔄 Fallback pour ${gibsLayer}: tentative sans time et sans styles...`);
+            
+            // Supprimer la couche défaillante
+            if (wmsLayersRef.current[layerDef.value]) {
+              mapRef.current.removeLayer(wmsLayersRef.current[layerDef.value]);
+              delete wmsLayersRef.current[layerDef.value];
+            }
+            
+            // Créer une couche de fallback sans time et sans styles
+            const fallbackOptions = {
+              layers: gibsLayer,
+              format: 'image/png',
+              transparent: true,
+              opacity: opacity,
+              attribution: 'NASA GIBS',
+              maxZoom: 10,
+              minZoom: 3,
+              tileSize: 512,
+              version: '1.3.0',
+              crs: L.CRS.EPSG3857,
+            };
+            
+            console.log(`📡 Fallback WMS Options:`, fallbackOptions);
+            
             const fallbackLayer = L.tileLayer.wms(
               'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
               fallbackOptions
             ).addTo(mapRef.current);
+            
             wmsLayersRef.current[layerDef.value] = fallbackLayer;
+            console.log(`✅ Couche fallback ${gibsLayer} ajoutée`);
           }
         });
 
+        // Ajouter la couche à la carte
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${gibsLayer} ajoutée`);
+        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte`);
+
+        // Forcer un redimensionnement après l'ajout
+        setTimeout(() => {
+          if (mapRef.current) {
+            mapRef.current.invalidateSize();
+            console.log(`🔄 Carte redimensionnée après ajout de ${gibsLayer}`);
+          }
+        }, 1000);
+
       } catch (error) {
-        console.error(`❌ Erreur ajout ${gibsLayer}:`, error);
+        console.error(`❌ Erreur lors de l'ajout de la couche ${gibsLayer}:`, error);
       }
     });
 
-    setTimeout(() => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-      }
-    }, 1000);
-
     return () => {
       Object.values(wmsLayersRef.current).forEach(layer => {
-        if (mapRef.current) mapRef.current.removeLayer(layer);
+        if (mapRef.current) {
+          mapRef.current.removeLayer(layer);
+        }
       });
       wmsLayersRef.current = {};
     };
