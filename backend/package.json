@@ -1,7 +1,7 @@
 {
   "name": "firms-backend",
   "version": "1.0.0",
-  "description": "Backend pour l'application FIRMS",
+  "description": "Backend pour l'application FIRMS - Feux, Vents et SDIS",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
