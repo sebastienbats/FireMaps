@@ -68,6 +68,11 @@ const loadHeatPlugin = () => {
   });
 };
 
+// Fonction utilitaire pour formater la date
+const formatDate = (date) => {
+  return date.toISOString().slice(0, 10);
+};
+
 const Map = ({
   fires,
   showHeatmap,
@@ -325,9 +330,8 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
 
-      // === UTILISER LE PROXY BACKEND ===
-      // Le proxy backend résout les problèmes CORS
-      const tileUrl = `/api/gibs/tile/{z}/{x}/{y}/${gibsLayer}.png`;
+      // === UTILISER L'URL COMPLÈTE DU BACKEND ===
+      const tileUrl = `http://localhost:5000/api/gibs/tile/{z}/{x}/{y}/${gibsLayer}.png`;
       
       console.log(`📡 URL des tuiles GIBS (proxy):`, tileUrl);
 
@@ -339,7 +343,6 @@ const Map = ({
           maxZoom: 8,
           minZoom: 3,
           tileSize: 256,
-          // Pas besoin de crossOrigin car le proxy gère CORS
         });
 
         // Ajouter des événements pour le débogage
