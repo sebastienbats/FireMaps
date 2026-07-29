@@ -28,6 +28,12 @@ const WMS_LAYERS = [
     type: 'openmeteo_wms',
     layer: 'cloud_cover'
   },
+  // --- Leaflet.OpenMeteo (plugin) ---
+  { 
+    value: 'openmeteo_plugin', 
+    label: '🌦️ Météo (Leaflet.OpenMeteo)', 
+    type: 'openmeteo_plugin'
+  },
 ];
 
 const Controls = ({
@@ -286,7 +292,9 @@ const Controls = ({
                 />
                 <span className="wms-layer-name">{layer.label}</span>
                 <span className="wms-layer-type">
-                  {layer.type === 'openmeteo_wms' ? '🗺️' : '🌦️'}
+                  {layer.type === 'openmeteo_wms' ? '🗺️' : 
+                   layer.type === 'openmeteo_plugin' ? '🌦️' : 
+                   '🌡️'}
                 </span>
               </label>
               {isLayerActive(layer.value) && (
@@ -316,7 +324,7 @@ const Controls = ({
             : 'Aucune couche active'}
         </small>
         <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
-          💡 Les tuiles WMS Open-Meteo sont mises à jour toutes les heures
+          💡 Leaflet.OpenMeteo affiche un widget météo interactif
         </small>
       </div>
 
