@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
+// Importer le plugin Leaflet.OpenMeteo depuis npm
+import 'leaflet-openmeteo';
 
 // Liste des couches WMS disponibles
 const WMS_LAYERS = [
@@ -46,6 +48,7 @@ const isVelocityLayerAvailable = () => {
 };
 
 const isOpenMeteoPluginAvailable = () => {
+  // Vérifier si le plugin est chargé (L.Control.OpenMeteo)
   try { return typeof L !== 'undefined' && typeof L.Control !== 'undefined' && typeof L.Control.OpenMeteo === 'function'; } catch(e) { return false; }
 };
 
@@ -75,31 +78,6 @@ const loadHeatPlugin = () => {
       document.head.appendChild(script);
     };
     tryLoad();
-  });
-};
-
-// Chargement dynamique du plugin Leaflet.OpenMeteo
-const loadOpenMeteoPlugin = () => {
-  return new Promise((resolve, reject) => {
-    if (isOpenMeteoPluginAvailable()) return resolve();
-    console.log('📦 Tentative de chargement dynamique de Leaflet.OpenMeteo...');
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/leaflet-openmeteo@1.0.0/dist/leaflet-openmeteo.min.js';
-    script.onload = () => {
-      // Vérifier que le plugin est bien chargé
-      setTimeout(() => {
-        if (isOpenMeteoPluginAvailable()) {
-          console.log('✅ Leaflet.OpenMeteo chargé dynamiquement');
-          resolve();
-        } else {
-          reject(new Error('Leaflet.OpenMeteo non disponible après chargement'));
-        }
-      }, 500);
-    };
-    script.onerror = () => {
-      reject(new Error('Échec du chargement de Leaflet.OpenMeteo'));
-    };
-    document.head.appendChild(script);
   });
 };
 
@@ -415,62 +393,53 @@ const Map = ({
 
     if (!isOpenMeteoActive) return;
 
-    const loadAndAddOpenMeteo = async () => {
+    // Vérifier que le plugin est disponible (importé via npm)
+    // Le package 'leaflet-openmeteo' expose L.Control.OpenMeteo
+    if (isOpenMeteoPluginAvailable()) {
+      console.log('🌦️ Ajout de la couche Leaflet.OpenMeteo...');
+      
       try {
-        // Vérifier que le plugin est disponible
-        if (!isOpenMeteoPluginAvailable()) {
-          console.log('📦 Chargement du plugin Leaflet.OpenMeteo...');
-          await loadOpenMeteoPlugin();
-        }
+        // Créer le contrôle OpenMeteo
+        // Documentation: https://github.com/JasonSanford/Leaflet.OpenMeteo
+        const control = new L.Control.OpenMeteo({
+          title: 'Météo France',
+          center: [46.6, 2.2],
+          zoom: 6,
+          // Opacité du fond de carte météo
+          opacity: wmsOpacity,
+          // Position du contrôle sur la carte (topright, topleft, bottomright, bottomleft)
+          position: 'topright',
+          // Taille du widget
+          width: 300,
+          height: 300,
+          // Variables météo à afficher
+          variables: {
+            temperature: true,
+            precipitation: true,
+            cloudcover: true,
+            windspeed: true,
+            pressure: true,
+            humidity: true,
+          },
+          // Couleurs personnalisées
+          colors: {
+            temperature: '#e67e22',
+            precipitation: '#3498db',
+            cloudcover: '#95a5a6',
+          }
+        });
 
-        // Vérifier une nouvelle fois
-        if (isOpenMeteoPluginAvailable()) {
-          console.log('🌦️ Ajout de la couche Leaflet.OpenMeteo...');
-          
-          // Créer le contrôle OpenMeteo
-          // Options disponibles : https://github.com/JasonSanford/Leaflet.OpenMeteo
-          const control = L.Control.OpenMeteo({
-            title: 'Météo France',
-            center: [46.6, 2.2],
-            zoom: 6,
-            // Opacité du fond de carte météo
-            opacity: wmsOpacity,
-            // Position du contrôle sur la carte (topright, topleft, bottomright, bottomleft)
-            position: 'topright',
-            // Taille du widget
-            width: 300,
-            height: 300,
-            // Variables météo à afficher
-            variables: {
-              temperature: true,
-              precipitation: true,
-              cloudcover: true,
-              windspeed: true,
-              pressure: true,
-              humidity: true,
-            },
-            // Couleurs personnalisées
-            colors: {
-              temperature: '#e67e22',
-              precipitation: '#3498db',
-              cloudcover: '#95a5a6',
-            }
-          });
-
-          // Ajouter le contrôle à la carte
-          control.addTo(mapRef.current);
-          openMeteoControlRef.current = control;
-          
-          console.log('✅ Leaflet.OpenMeteo ajouté avec succès');
-        } else {
-          console.error('❌ Leaflet.OpenMeteo toujours non disponible après chargement');
-        }
+        // Ajouter le contrôle à la carte
+        control.addTo(mapRef.current);
+        openMeteoControlRef.current = control;
+        
+        console.log('✅ Leaflet.OpenMeteo ajouté avec succès');
       } catch (error) {
         console.error('❌ Erreur lors de l\'ajout de Leaflet.OpenMeteo:', error);
       }
-    };
-
-    loadAndAddOpenMeteo();
+    } else {
+      console.warn('⚠️ Leaflet.OpenMeteo non disponible. Vérifiez l\'import du package.');
+    }
 
     return () => {
       if (openMeteoControlRef.current && mapRef.current) {
