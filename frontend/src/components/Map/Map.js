@@ -9,24 +9,24 @@ const WMS_LAYERS = [
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- NASA GIBS (tuiles via proxy) ---
+  // --- Open-Meteo (tuiles) ---
   { 
-    value: 'ndvi', 
-    label: '🌿 Végétation (NDVI - MODIS)', 
-    type: 'gibs', 
-    layer: 'MOD13A2_NDVI'
+    value: 'temperature_map', 
+    label: '🌡️ Température (tuiles Open-Meteo)', 
+    type: 'openmeteo_tile',
+    layer: 'temperature_2m'
   },
   { 
-    value: 'lst_day', 
-    label: '🌡️ LST Jour (MODIS - 1km)', 
-    type: 'gibs', 
-    layer: 'MOD11A1_LST_Day_1km'
+    value: 'precipitation_map', 
+    label: '🌧️ Précipitations (tuiles Open-Meteo)', 
+    type: 'openmeteo_tile',
+    layer: 'precipitation'
   },
   { 
-    value: 'lst_night', 
-    label: '🌡️ LST Nuit (MODIS - 1km)', 
-    type: 'gibs', 
-    layer: 'MOD11A1_LST_Night_1km'
+    value: 'cloudcover_map', 
+    label: '☁️ Couverture nuageuse (tuiles Open-Meteo)', 
+    type: 'openmeteo_tile',
+    layer: 'cloudcover'
   },
 ];
 
@@ -66,11 +66,6 @@ const loadHeatPlugin = () => {
     };
     tryLoad();
   });
-};
-
-// Fonction utilitaire pour formater la date
-const formatDate = (date) => {
-  return date.toISOString().slice(0, 10);
 };
 
 const Map = ({
@@ -290,22 +285,15 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES GIBS AVEC PROXY BACKEND ===
+  // === GESTION DES COUCHES WMS (Open-Meteo tuiles) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const activeGibsValues = activeWmsLayers
-      .filter(l => {
-        const def = WMS_LAYERS.find(d => d.value === l.value);
-        return def && def.type === 'gibs';
-      })
-      .map(l => l.value);
-
-    console.log(`🔍 Couches GIBS actives: ${activeGibsValues.join(', ') || 'aucune'}`);
+    const activeValues = activeWmsLayers.map(l => l.value);
 
     // Supprimer les couches inactives
     Object.keys(wmsLayersRef.current).forEach(key => {
-      if (!activeGibsValues.includes(key)) {
+      if (!activeValues.includes(key)) {
         if (wmsLayersRef.current[key] && mapRef.current) {
           mapRef.current.removeLayer(wmsLayersRef.current[key]);
           delete wmsLayersRef.current[key];
@@ -317,7 +305,7 @@ const Map = ({
     // Ajouter les couches actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
-      if (!fullDef || fullDef.type !== 'gibs') return;
+      if (!fullDef) return;
 
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
@@ -327,67 +315,34 @@ const Map = ({
         return;
       }
 
-      const gibsLayer = fullDef.layer;
-      console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
-
-      // === UTILISER L'URL COMPLÈTE DU BACKEND ===
-      const tileUrl = `http://localhost:5000/api/gibs/tile/{z}/{x}/{y}/${gibsLayer}.png`;
-      
-      console.log(`📡 URL des tuiles GIBS (proxy):`, tileUrl);
-
-      try {
-        // Créer la couche de tuiles avec le proxy
+      // === COUCHES OPEN-METEO TILES ===
+      if (fullDef.type === 'openmeteo_tile') {
+        const layerName = fullDef.layer;
+        const tileUrl = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${layerName}.png`;
+        
+        console.log(`🌦️ Ajout de la couche Open-Meteo: ${layerName}`);
+        
         const layer = L.tileLayer(tileUrl, {
           opacity: opacity,
-          attribution: 'NASA GIBS',
+          attribution: 'Open-Meteo',
           maxZoom: 8,
           minZoom: 3,
           tileSize: 256,
+          crossOrigin: true,
         });
 
-        // Ajouter des événements pour le débogage
-        let tileErrorCount = 0;
-        let tileLoadCount = 0;
+        layer.on('loading', () => console.log(`⏳ Chargement ${layerName}...`));
+        layer.on('load', () => console.log(`✅ ${layerName} chargé`));
+        layer.on('tileerror', (err) => console.error(`❌ Erreur ${layerName}:`, err));
 
-        layer.on('loading', () => {
-          console.log(`⏳ Chargement des tuiles ${gibsLayer}...`);
-        });
-
-        layer.on('load', () => {
-          console.log(`✅ ${gibsLayer} chargé avec succès (${tileLoadCount} tuiles chargées)`);
-        });
-
-        layer.on('tileload', () => {
-          tileLoadCount++;
-          if (tileLoadCount % 10 === 0) {
-            console.log(`📊 ${gibsLayer}: ${tileLoadCount} tuiles chargées`);
-          }
-        });
-
-        layer.on('tileerror', (error) => {
-          tileErrorCount++;
-          console.error(`❌ Erreur tuile ${gibsLayer} #${tileErrorCount}:`, error);
-          if (error.tile) {
-            console.error(`   Tuile URL: ${error.tile.src}`);
-          }
-        });
-
-        // Ajouter la couche à la carte
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte (proxy backend)`);
-
-        // Forcer un redimensionnement après l'ajout
-        setTimeout(() => {
-          if (mapRef.current) {
-            mapRef.current.invalidateSize();
-            console.log(`🔄 Carte redimensionnée après ajout de ${gibsLayer}`);
-          }
-        }, 1000);
-
-      } catch (error) {
-        console.error(`❌ Erreur lors de l'ajout de la couche ${gibsLayer}:`, error);
+        console.log(`✅ Couche ${layerName} ajoutée`);
+        return;
       }
+
+      // === COUCHES MÉTÉO (points) ===
+      // Gérées dans le useEffect séparé
     });
 
     return () => {
@@ -400,7 +355,7 @@ const Map = ({
     };
   }, [activeWmsLayers, wmsOpacity]);
 
-  // === COUCHE MÉTÉO ===
+  // === COUCHE MÉTÉO (points) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
