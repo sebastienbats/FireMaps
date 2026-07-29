@@ -9,24 +9,24 @@ const WMS_LAYERS = [
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- Open-Meteo (tuiles) ---
+  // --- Open-Meteo (tuiles WMS) ---
   { 
-    value: 'temperature_map', 
-    label: '🌡️ Température (tuiles)', 
-    type: 'openmeteo_tile',
+    value: 'temperature_wms', 
+    label: '🌡️ Température (WMS)', 
+    type: 'openmeteo_wms',
     layer: 'temperature_2m'
   },
   { 
-    value: 'precipitation_map', 
-    label: '🌧️ Précipitations (tuiles)', 
-    type: 'openmeteo_tile',
+    value: 'precipitation_wms', 
+    label: '🌧️ Précipitations (WMS)', 
+    type: 'openmeteo_wms',
     layer: 'precipitation'
   },
   { 
-    value: 'cloudcover_map', 
-    label: '☁️ Couverture nuageuse (tuiles)', 
-    type: 'openmeteo_tile',
-    layer: 'cloudcover'
+    value: 'cloudcover_wms', 
+    label: '☁️ Couverture nuageuse (WMS)', 
+    type: 'openmeteo_wms',
+    layer: 'cloud_cover'
   },
 ];
 
@@ -68,19 +68,16 @@ const loadHeatPlugin = () => {
   });
 };
 
-// Fonction pour créer une couche Open-Meteo
-const createOpenMeteoLayer = (layerName, opacity) => {
-  // Mapping des noms de couches
-  const layerMap = {
-    'temperature_2m': 'temperature_2m',
-    'precipitation': 'precipitation',
-    'cloudcover': 'cloudcover',
-  };
-
-  const actualLayer = layerMap[layerName] || layerName;
+// Fonction pour créer une couche WMS Open-Meteo
+const createOpenMeteoWMSLayer = (layerName, opacity) => {
+  // Variables disponibles: temperature_2m, precipitation, cloud_cover, wind_speed_10m, pressure_msl
+  const wmsUrl = 'https://api.open-meteo.com/v1/map/';
   
-  // URL des tuiles Open-Meteo
-  const tileUrl = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${actualLayer}.png`;
+  // Utiliser L.tileLayer pour les tuiles raster
+  const tileUrl = `${wmsUrl}{z}/{x}/{y}/${layerName}.png`;
+  
+  console.log(`🌦️ Création de la couche WMS Open-Meteo: ${layerName}`);
+  console.log(`📡 URL: ${tileUrl}`);
   
   return L.tileLayer(tileUrl, {
     opacity: opacity,
@@ -309,19 +306,26 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES WMS ===
+  // === GESTION DES COUCHES WMS (Open-Meteo WMS) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const activeValues = activeWmsLayers.map(l => l.value);
+    const activeWmsValues = activeWmsLayers
+      .filter(l => {
+        const def = WMS_LAYERS.find(d => d.value === l.value);
+        return def && def.type === 'openmeteo_wms';
+      })
+      .map(l => l.value);
+
+    console.log(`🔍 Couches WMS Open-Meteo actives: ${activeWmsValues.join(', ') || 'aucune'}`);
 
     // Supprimer les couches inactives
     Object.keys(wmsLayersRef.current).forEach(key => {
-      if (!activeValues.includes(key)) {
+      if (!activeWmsValues.includes(key)) {
         if (wmsLayersRef.current[key] && mapRef.current) {
           mapRef.current.removeLayer(wmsLayersRef.current[key]);
           delete wmsLayersRef.current[key];
-          console.log(`🗑️ Couche supprimée: ${key}`);
+          console.log(`🗑️ Couche WMS supprimée: ${key}`);
         }
       }
     });
@@ -329,7 +333,7 @@ const Map = ({
     // Ajouter les couches actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
-      if (!fullDef) return;
+      if (!fullDef || fullDef.type !== 'openmeteo_wms') return;
 
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
@@ -339,35 +343,34 @@ const Map = ({
         return;
       }
 
-      // === COUCHES OPEN-METEO TILES ===
-      if (fullDef.type === 'openmeteo_tile') {
-        const layerName = fullDef.layer;
-        console.log(`🌦️ Ajout de la couche Open-Meteo: ${layerName}`);
-        
-        const layer = createOpenMeteoLayer(layerName, opacity);
+      const layerName = fullDef.layer;
+      console.log(`🌦️ Ajout de la couche WMS Open-Meteo: ${layerName}`);
+
+      try {
+        const layer = createOpenMeteoWMSLayer(layerName, opacity);
 
         // Événements pour le débogage
         let tileErrorCount = 0;
         let tileLoadCount = 0;
 
         layer.on('loading', () => {
-          console.log(`⏳ Chargement des tuiles ${layerName}...`);
+          console.log(`⏳ Chargement des tuiles WMS ${layerName}...`);
         });
 
         layer.on('load', () => {
-          console.log(`✅ ${layerName} chargé avec succès (${tileLoadCount} tuiles)`);
+          console.log(`✅ ${layerName} WMS chargé avec succès (${tileLoadCount} tuiles)`);
         });
 
         layer.on('tileload', () => {
           tileLoadCount++;
           if (tileLoadCount % 10 === 0) {
-            console.log(`📊 ${layerName}: ${tileLoadCount} tuiles chargées`);
+            console.log(`📊 ${layerName} WMS: ${tileLoadCount} tuiles chargées`);
           }
         });
 
         layer.on('tileerror', (error) => {
           tileErrorCount++;
-          console.error(`❌ Erreur tuile ${layerName} #${tileErrorCount}:`, error);
+          console.error(`❌ Erreur tuile WMS ${layerName} #${tileErrorCount}:`, error);
           if (error.tile) {
             console.error(`   Tuile URL: ${error.tile.src}`);
           }
@@ -375,15 +378,17 @@ const Map = ({
 
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${layerName} ajoutée à la carte`);
+        console.log(`✅ Couche WMS ${layerName} ajoutée à la carte`);
 
-        // Forcer un redimensionnement
         setTimeout(() => {
           if (mapRef.current) {
             mapRef.current.invalidateSize();
-            console.log(`🔄 Carte redimensionnée après ajout de ${layerName}`);
+            console.log(`🔄 Carte redimensionnée après ajout de ${layerName} WMS`);
           }
         }, 500);
+
+      } catch (error) {
+        console.error(`❌ Erreur lors de l'ajout de la couche WMS ${layerName}:`, error);
       }
     });
 
