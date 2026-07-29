@@ -3,36 +3,30 @@ import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
 
-// Liste des couches WMS disponibles avec options spécifiques
+// Liste des couches WMS disponibles
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- NASA GIBS (WMS) avec paramètres spécifiques ---
+  // --- Open-Meteo (tuiles) ---
   { 
-    value: 'ndvi', 
-    label: '🌿 Végétation (NDVI - MODIS)', 
-    type: 'gibs', 
-    layer: 'MOD13A2_NDVI',
-    options: { 
-      styles: 'palette/ndvi',
-      styles_alt: 'ndvi'
-    }
+    value: 'temperature_map', 
+    label: '🌡️ Température (tuiles)', 
+    type: 'openmeteo_tile',
+    layer: 'temperature_2m'
   },
   { 
-    value: 'lst_day', 
-    label: '🌡️ LST Jour (MODIS - 1km)', 
-    type: 'gibs', 
-    layer: 'MOD11A1_LST_Day_1km',
-    options: { styles: 'palette/thermal' }
+    value: 'precipitation_map', 
+    label: '🌧️ Précipitations (tuiles)', 
+    type: 'openmeteo_tile',
+    layer: 'precipitation'
   },
   { 
-    value: 'lst_night', 
-    label: '🌡️ LST Nuit (MODIS - 1km)', 
-    type: 'gibs', 
-    layer: 'MOD11A1_LST_Night_1km',
-    options: { styles: 'palette/thermal' }
+    value: 'cloudcover_map', 
+    label: '☁️ Couverture nuageuse (tuiles)', 
+    type: 'openmeteo_tile',
+    layer: 'cloudcover'
   },
 ];
 
@@ -279,7 +273,7 @@ const Controls = ({
         </div>
       </div>
 
-      {/* Couches WMS - Multi-sélection avec labels améliorés */}
+      {/* Couches WMS - Multi-sélection */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🗺️</span> Couches WMS
@@ -296,7 +290,7 @@ const Controls = ({
                 />
                 <span className="wms-layer-name">{layer.label}</span>
                 <span className="wms-layer-type">
-                  {layer.type === 'gibs' ? '🌍' : '🌦️'}
+                  {layer.type === 'openmeteo_tile' ? '🗺️' : '🌦️'}
                 </span>
               </label>
               {isLayerActive(layer.value) && (
@@ -326,7 +320,7 @@ const Controls = ({
             : 'Aucune couche active'}
         </small>
         <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
-          💡 Les couches GIBS (MODIS) ont une latence de 1-2 jours
+          💡 Les tuiles Open-Meteo sont mises à jour toutes les heures
         </small>
       </div>
 
