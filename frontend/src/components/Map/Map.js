@@ -16,8 +16,7 @@ const WMS_LAYERS = [
     type: 'gibs', 
     layer: 'MOD13A2_NDVI',
     options: { 
-      styles: 'palette/ndvi',
-      styles_alt: 'ndvi'
+      styles: 'palette/ndvi'
     }
   },
   { 
@@ -95,7 +94,7 @@ const Map = ({
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
 
-  // Fonctions météo
+  // Fonctions météo (inchangées)
   const getColorForTemperature = (temp) => {
     if (temp > 30) return '#e74c3c';
     if (temp > 25) return '#e67e22';
@@ -144,9 +143,11 @@ const Map = ({
     if (!mapRef.current) {
       console.log('🗺️ Initialisation de la carte...');
       mapRef.current = L.map('map', { center: [46.6, 2.2], zoom: 6, zoomControl: true });
+      
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(mapRef.current);
+      
       markersRef.current = L.layerGroup().addTo(mapRef.current);
       console.log('✅ Carte initialisée');
     }
@@ -240,7 +241,7 @@ const Map = ({
 
     if (showWind && windData) {
       if (isVelocityLayerAvailable()) {
-        console.log('🌬️ Création de la couche vent avec données:', windData);
+        console.log('🌬️ Création de la couche vent avec données');
         try {
           velocityRef.current = L.velocityLayer({
             displayValues: true,
@@ -289,7 +290,7 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES GIBS WMS (NDVI, LST) - CORRIGÉ ===
+  // === GESTION DES COUCHES GIBS WMS (URL CORRIGÉE) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -329,47 +330,42 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
 
-      // === CONFIGURATION WMS POUR GIBS AVEC EPSG:4326 ===
+      // === URL CORRECTE POUR GIBS (tuiles) ===
+      // Utiliser le format de tuiles GIBS avec le bon serveur
+      const baseUrl = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+      
       const wmsOptions = {
         layers: gibsLayer,
         format: 'image/png',
         transparent: true,
         opacity: opacity,
         attribution: 'NASA GIBS',
-        // Forcer l'utilisation de EPSG:4326
+        // Utiliser EPSG:4326 (coordonnées géographiques)
         crs: L.CRS.EPSG4326,
-        // Définir la plage de niveaux de zoom
+        // Niveaux de zoom adaptés
         minZoom: 2,
-        maxZoom: 8,
-        // Taille des tuiles
+        maxZoom: 9,
+        // Taille standard
         tileSize: 256,
         // Version WMS
         version: '1.3.0',
-        // Styles spécifiques
+        // Styles
         styles: fullDef.options?.styles || '',
         // Ne pas utiliser time pour éviter les erreurs
-        // time: '',
-        // Ajouter le paramètre TIME si nécessaire
-        time: '',
       };
 
-      // Log des paramètres
       console.log(`📡 Paramètres WMS GIBS:`, {
+        url: baseUrl,
         layers: wmsOptions.layers,
         styles: wmsOptions.styles,
-        crs: 'EPSG:4326 (forcé)',
+        crs: 'EPSG:4326',
         opacity: wmsOptions.opacity,
-        version: wmsOptions.version,
-        minZoom: wmsOptions.minZoom,
-        maxZoom: wmsOptions.maxZoom
+        version: wmsOptions.version
       });
 
       try {
-        // Créer la couche WMS avec EPSG:4326
-        const layer = L.tileLayer.wms(
-          'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi',
-          wmsOptions
-        );
+        // Créer la couche WMS
+        const layer = L.tileLayer.wms(baseUrl, wmsOptions);
 
         // Ajouter des événements pour le débogage
         let tileErrorCount = 0;
@@ -401,7 +397,7 @@ const Map = ({
         // Ajouter la couche à la carte
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte avec EPSG:4326`);
+        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte (EPSG:4326)`);
 
         // Forcer un redimensionnement après l'ajout
         setTimeout(() => {
