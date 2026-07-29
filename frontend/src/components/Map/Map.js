@@ -2,8 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
-// Importer le plugin Leaflet.OpenMeteo depuis npm
-import 'leaflet-openmeteo';
 
 // Liste des couches WMS disponibles
 const WMS_LAYERS = [
@@ -30,7 +28,7 @@ const WMS_LAYERS = [
     type: 'openmeteo_wms',
     layer: 'cloud_cover'
   },
-  // --- Leaflet.OpenMeteo (plugin) ---
+  // --- Leaflet.OpenMeteo (plugin CDN) ---
   { 
     value: 'openmeteo_plugin', 
     label: '🌦️ Météo (Leaflet.OpenMeteo)', 
@@ -48,8 +46,13 @@ const isVelocityLayerAvailable = () => {
 };
 
 const isOpenMeteoPluginAvailable = () => {
-  // Vérifier si le plugin est chargé (L.Control.OpenMeteo)
-  try { return typeof L !== 'undefined' && typeof L.Control !== 'undefined' && typeof L.Control.OpenMeteo === 'function'; } catch(e) { return false; }
+  try { 
+    return typeof L !== 'undefined' && 
+           typeof L.Control !== 'undefined' && 
+           typeof L.Control.OpenMeteo === 'function'; 
+  } catch(e) { 
+    return false; 
+  }
 };
 
 // Chargement dynamique de leaflet.heat
@@ -312,7 +315,6 @@ const Map = ({
 
     console.log(`🔍 Couches WMS Open-Meteo actives: ${activeWmsValues.join(', ') || 'aucune'}`);
 
-    // Supprimer les couches inactives
     Object.keys(wmsLayersRef.current).forEach(key => {
       if (!activeWmsValues.includes(key)) {
         if (wmsLayersRef.current[key] && mapRef.current) {
@@ -323,7 +325,6 @@ const Map = ({
       }
     });
 
-    // Ajouter les couches actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
       if (!fullDef || fullDef.type !== 'openmeteo_wms') return;
@@ -375,17 +376,15 @@ const Map = ({
     };
   }, [activeWmsLayers, wmsOpacity]);
 
-  // === GESTION DE LA COUCHE LEAFLET.OPENMETEO ===
+  // === GESTION DE LA COUCHE LEAFLET.OPENMETEO (CDN) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Supprimer l'ancien contrôle si présent
     if (openMeteoControlRef.current) {
       mapRef.current.removeControl(openMeteoControlRef.current);
       openMeteoControlRef.current = null;
     }
 
-    // Vérifier si la couche OpenMeteo est active
     const isOpenMeteoActive = activeWmsLayers.some(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'openmeteo_plugin';
@@ -393,26 +392,19 @@ const Map = ({
 
     if (!isOpenMeteoActive) return;
 
-    // Vérifier que le plugin est disponible (importé via npm)
-    // Le package 'leaflet-openmeteo' expose L.Control.OpenMeteo
+    // Vérifier que le plugin est chargé (via CDN)
     if (isOpenMeteoPluginAvailable()) {
       console.log('🌦️ Ajout de la couche Leaflet.OpenMeteo...');
       
       try {
-        // Créer le contrôle OpenMeteo
-        // Documentation: https://github.com/JasonSanford/Leaflet.OpenMeteo
         const control = new L.Control.OpenMeteo({
           title: 'Météo France',
           center: [46.6, 2.2],
           zoom: 6,
-          // Opacité du fond de carte météo
           opacity: wmsOpacity,
-          // Position du contrôle sur la carte (topright, topleft, bottomright, bottomleft)
           position: 'topright',
-          // Taille du widget
           width: 300,
           height: 300,
-          // Variables météo à afficher
           variables: {
             temperature: true,
             precipitation: true,
@@ -421,7 +413,6 @@ const Map = ({
             pressure: true,
             humidity: true,
           },
-          // Couleurs personnalisées
           colors: {
             temperature: '#e67e22',
             precipitation: '#3498db',
@@ -429,7 +420,6 @@ const Map = ({
           }
         });
 
-        // Ajouter le contrôle à la carte
         control.addTo(mapRef.current);
         openMeteoControlRef.current = control;
         
@@ -438,7 +428,7 @@ const Map = ({
         console.error('❌ Erreur lors de l\'ajout de Leaflet.OpenMeteo:', error);
       }
     } else {
-      console.warn('⚠️ Leaflet.OpenMeteo non disponible. Vérifiez l\'import du package.');
+      console.warn('⚠️ Leaflet.OpenMeteo non disponible. Vérifiez le chargement du CDN.');
     }
 
     return () => {
