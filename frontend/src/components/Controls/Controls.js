@@ -9,24 +9,24 @@ const WMS_LAYERS = [
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- Open-Meteo (tuiles) ---
+  // --- Open-Meteo (tuiles WMS) ---
   { 
-    value: 'temperature_map', 
-    label: '🌡️ Température (tuiles)', 
-    type: 'openmeteo_tile',
+    value: 'temperature_wms', 
+    label: '🌡️ Température (WMS)', 
+    type: 'openmeteo_wms',
     layer: 'temperature_2m'
   },
   { 
-    value: 'precipitation_map', 
-    label: '🌧️ Précipitations (tuiles)', 
-    type: 'openmeteo_tile',
+    value: 'precipitation_wms', 
+    label: '🌧️ Précipitations (WMS)', 
+    type: 'openmeteo_wms',
     layer: 'precipitation'
   },
   { 
-    value: 'cloudcover_map', 
-    label: '☁️ Couverture nuageuse (tuiles)', 
-    type: 'openmeteo_tile',
-    layer: 'cloudcover'
+    value: 'cloudcover_wms', 
+    label: '☁️ Couverture nuageuse (WMS)', 
+    type: 'openmeteo_wms',
+    layer: 'cloud_cover'
   },
 ];
 
@@ -286,7 +286,7 @@ const Controls = ({
                 />
                 <span className="wms-layer-name">{layer.label}</span>
                 <span className="wms-layer-type">
-                  {layer.type === 'openmeteo_tile' ? '🗺️' : '🌦️'}
+                  {layer.type === 'openmeteo_wms' ? '🗺️' : '🌦️'}
                 </span>
               </label>
               {isLayerActive(layer.value) && (
@@ -316,7 +316,7 @@ const Controls = ({
             : 'Aucune couche active'}
         </small>
         <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
-          💡 Les tuiles Open-Meteo sont mises à jour toutes les heures
+          💡 Les tuiles WMS Open-Meteo sont mises à jour toutes les heures
         </small>
       </div>
 
