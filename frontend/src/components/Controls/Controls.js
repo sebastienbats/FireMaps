@@ -3,37 +3,12 @@ import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
 
-// Liste des couches WMS disponibles
+// Liste des couches disponibles (sans les WMS qui ne fonctionnent pas)
 const WMS_LAYERS = [
-  // --- Open-Meteo (météo en points) ---
+  // --- Open-Meteo (météo en points - API JSON) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- Open-Meteo (tuiles WMS) ---
-  { 
-    value: 'temperature_wms', 
-    label: '🌡️ Température (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'temperature_2m'
-  },
-  { 
-    value: 'precipitation_wms', 
-    label: '🌧️ Précipitations (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'precipitation'
-  },
-  { 
-    value: 'cloudcover_wms', 
-    label: '☁️ Couverture nuageuse (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'cloud_cover'
-  },
-  // --- Leaflet.OpenMeteo (plugin) ---
-  { 
-    value: 'openmeteo_plugin', 
-    label: '🌦️ Météo (Leaflet.OpenMeteo)', 
-    type: 'openmeteo_plugin'
-  },
 ];
 
 const Controls = ({
@@ -275,10 +250,10 @@ const Controls = ({
         </div>
       </div>
 
-      {/* Couches WMS */}
+      {/* Couches météo */}
       <div className="control-group">
         <label className="control-label">
-          <span className="icon">🗺️</span> Couches WMS
+          <span className="icon">🌦️</span> Couches météo
         </label>
         <div className="wms-layer-list">
           {WMS_LAYERS.map((layer) => (
@@ -291,11 +266,7 @@ const Controls = ({
                   disabled={loading}
                 />
                 <span className="wms-layer-name">{layer.label}</span>
-                <span className="wms-layer-type">
-                  {layer.type === 'openmeteo_wms' ? '🗺️' : 
-                   layer.type === 'openmeteo_plugin' ? '🌦️' : 
-                   '🌡️'}
-                </span>
+                <span className="wms-layer-type">📊</span>
               </label>
               {isLayerActive(layer.value) && (
                 <div className="wms-layer-opacity">
@@ -324,7 +295,7 @@ const Controls = ({
             : 'Aucune couche active'}
         </small>
         <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
-          💡 Leaflet.OpenMeteo affiche un widget météo interactif
+          💡 Données Open-Meteo en temps réel (API JSON)
         </small>
       </div>
 
