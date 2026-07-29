@@ -3,12 +3,18 @@ import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
 
-// Liste des couches disponibles (sans WMS)
+// Liste des couches disponibles
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points - API JSON) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
+  // --- Leaflet.OpenMeteo (plugin) ---
+  { 
+    value: 'openmeteo_plugin', 
+    label: '🌦️ Météo (Leaflet.OpenMeteo)', 
+    type: 'openmeteo_plugin' 
+  },
 ];
 
 // Vérification des plugins
@@ -18,6 +24,16 @@ const isHeatLayerAvailable = () => {
 
 const isVelocityLayerAvailable = () => {
   try { return typeof L !== 'undefined' && typeof L.velocityLayer === 'function'; } catch(e) { return false; }
+};
+
+const isOpenMeteoPluginAvailable = () => {
+  try { 
+    return typeof L !== 'undefined' && 
+           typeof L.Control !== 'undefined' && 
+           typeof L.Control.OpenMeteo === 'function'; 
+  } catch(e) { 
+    return false; 
+  }
 };
 
 // Chargement dynamique de leaflet.heat
@@ -68,6 +84,7 @@ const Map = ({
   const velocityRef = useRef(null);
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
+  const openMeteoControlRef = useRef(null);
 
   // Fonctions météo
   const getColorForTemperature = (temp) => {
@@ -265,6 +282,141 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
+  // === GESTION DE LA COUCHE LEAFLET.OPENMETEO ===
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Supprimer l'ancien contrôle si présent
+    if (openMeteoControlRef.current) {
+      mapRef.current.removeControl(openMeteoControlRef.current);
+      openMeteoControlRef.current = null;
+    }
+
+    // Vérifier si la couche OpenMeteo est active
+    const isOpenMeteoActive = activeWmsLayers.some(l => {
+      const def = WMS_LAYERS.find(d => d.value === l.value);
+      return def && def.type === 'openmeteo_plugin';
+    });
+
+    if (!isOpenMeteoActive) return;
+
+    // Vérifier que le plugin est chargé
+    if (isOpenMeteoPluginAvailable()) {
+      console.log('🌦️ Ajout de la couche Leaflet.OpenMeteo...');
+      
+      try {
+        // Créer le contrôle OpenMeteo avec les options
+        const control = new L.Control.OpenMeteo({
+          // Position du contrôle sur la carte
+          position: 'topright',
+          // Centre par défaut
+          center: [46.6, 2.2],
+          // Niveau de zoom par défaut
+          zoom: 6,
+          // Titre affiché
+          title: 'Météo France',
+          // Styles personnalisés
+          style: {
+            backgroundColor: darkMode ? '#1a1a2e' : 'white',
+            color: darkMode ? '#eaeaea' : '#333',
+            border: darkMode ? '1px solid #2a3a5a' : '1px solid #ddd',
+            borderRadius: '8px',
+            padding: '8px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+            width: '280px',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '14px',
+          },
+          // Icône personnalisée
+          icon: '🌤️',
+          // Afficher les variables météo
+          variables: {
+            temperature: true,
+            precipitation: true,
+            cloudcover: true,
+            windspeed: true,
+            pressure: true,
+            humidity: true,
+          },
+          // Couleurs personnalisées
+          colors: {
+            temperature: '#e67e22',
+            precipitation: '#3498db',
+            cloudcover: '#95a5a6',
+            windspeed: '#2ecc71',
+            pressure: '#9b59b6',
+            humidity: '#1abc9c',
+          },
+        });
+
+        // Ajouter le contrôle à la carte
+        control.addTo(mapRef.current);
+        openMeteoControlRef.current = control;
+        
+        console.log('✅ Leaflet.OpenMeteo ajouté avec succès');
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'ajout de Leaflet.OpenMeteo:', error);
+        console.error('Détails:', error.message);
+      }
+    } else {
+      console.warn('⚠️ Leaflet.OpenMeteo non disponible. Vérifiez le chargement du CDN.');
+      console.log('Tentative de chargement depuis le CDN...');
+      
+      // Tentative de chargement dynamique
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/gh/almamigratoria-netizen/Leaflet.OpenMeteo@main/Leaflet.OpenMeteo.min.js';
+      script.onload = () => {
+        console.log('✅ Leaflet.OpenMeteo chargé dynamiquement');
+        // Réessayer d'ajouter la couche après un court délai
+        setTimeout(() => {
+          if (isOpenMeteoActive && isOpenMeteoPluginAvailable() && mapRef.current) {
+            try {
+              const control = new L.Control.OpenMeteo({
+                position: 'topright',
+                center: [46.6, 2.2],
+                zoom: 6,
+                title: 'Météo France',
+                style: {
+                  backgroundColor: darkMode ? '#1a1a2e' : 'white',
+                  color: darkMode ? '#eaeaea' : '#333',
+                  border: darkMode ? '1px solid #2a3a5a' : '1px solid #ddd',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                  width: '280px',
+                },
+                variables: {
+                  temperature: true,
+                  precipitation: true,
+                  cloudcover: true,
+                  windspeed: true,
+                  pressure: true,
+                  humidity: true,
+                },
+              });
+              control.addTo(mapRef.current);
+              openMeteoControlRef.current = control;
+              console.log('✅ Leaflet.OpenMeteo ajouté après chargement dynamique');
+            } catch (err) {
+              console.error('❌ Erreur après chargement dynamique:', err);
+            }
+          }
+        }, 500);
+      };
+      script.onerror = () => {
+        console.error('❌ Échec du chargement dynamique de Leaflet.OpenMeteo');
+      };
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      if (openMeteoControlRef.current && mapRef.current) {
+        mapRef.current.removeControl(openMeteoControlRef.current);
+        openMeteoControlRef.current = null;
+      }
+    };
+  }, [activeWmsLayers, wmsOpacity, darkMode]);
+
   // === COUCHE MÉTÉO (points) ===
   useEffect(() => {
     if (!mapRef.current) return;
@@ -274,7 +426,6 @@ const Map = ({
       weatherLayerRef.current = null;
     }
 
-    // Vérifier si une couche météo est active
     const weatherLayer = activeWmsLayers.find(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'weather';
