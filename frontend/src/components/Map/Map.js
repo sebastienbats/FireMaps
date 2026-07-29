@@ -9,29 +9,24 @@ const WMS_LAYERS = [
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- NASA GIBS (tuiles directes) ---
+  // --- NASA GIBS (tuiles via proxy) ---
   { 
     value: 'ndvi', 
     label: '🌿 Végétation (NDVI - MODIS)', 
-    type: 'gibs_tile', 
-    layer: 'MOD13A2_NDVI',
-    options: { 
-      styles: 'palette/ndvi'
-    }
+    type: 'gibs', 
+    layer: 'MOD13A2_NDVI'
   },
   { 
     value: 'lst_day', 
     label: '🌡️ LST Jour (MODIS - 1km)', 
-    type: 'gibs_tile', 
-    layer: 'MOD11A1_LST_Day_1km',
-    options: { styles: 'palette/thermal' }
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Day_1km'
   },
   { 
     value: 'lst_night', 
     label: '🌡️ LST Nuit (MODIS - 1km)', 
-    type: 'gibs_tile', 
-    layer: 'MOD11A1_LST_Night_1km',
-    options: { styles: 'palette/thermal' }
+    type: 'gibs', 
+    layer: 'MOD11A1_LST_Night_1km'
   },
 ];
 
@@ -94,7 +89,7 @@ const Map = ({
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
 
-  // Fonctions météo (inchangées)
+  // Fonctions météo
   const getColorForTemperature = (temp) => {
     if (temp > 30) return '#e74c3c';
     if (temp > 25) return '#e67e22';
@@ -290,14 +285,14 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES GIBS AVEC TUILES DIRECTES ===
+  // === GESTION DES COUCHES GIBS AVEC PROXY BACKEND ===
   useEffect(() => {
     if (!mapRef.current) return;
 
     const activeGibsValues = activeWmsLayers
       .filter(l => {
         const def = WMS_LAYERS.find(d => d.value === l.value);
-        return def && (def.type === 'gibs_tile');
+        return def && def.type === 'gibs';
       })
       .map(l => l.value);
 
@@ -317,7 +312,7 @@ const Map = ({
     // Ajouter les couches actives
     activeWmsLayers.forEach(layerDef => {
       const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
-      if (!fullDef || fullDef.type !== 'gibs_tile') return;
+      if (!fullDef || fullDef.type !== 'gibs') return;
 
       const existingLayer = wmsLayersRef.current[layerDef.value];
       const opacity = layerDef.opacity || wmsOpacity;
@@ -330,24 +325,21 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
 
-      // === UTILISER LES TUILES DIRECTES GIBS AU LIEU DE WMS ===
-      // Format: https://gibs.earthdata.nasa.gov/tile/epsg4326/best/{z}/{x}/{y}/{layer}.png
-      // Cette URL fonctionne sans paramètres WMS complexes
-      const tileUrl = `https://gibs.earthdata.nasa.gov/tile/epsg4326/best/{z}/{x}/{y}/${gibsLayer}.png`;
+      // === UTILISER LE PROXY BACKEND ===
+      // Le proxy backend résout les problèmes CORS
+      const tileUrl = `/api/gibs/tile/{z}/{x}/{y}/${gibsLayer}.png`;
       
-      console.log(`📡 URL des tuiles GIBS:`, tileUrl);
+      console.log(`📡 URL des tuiles GIBS (proxy):`, tileUrl);
 
       try {
-        // Créer la couche de tuiles directement
+        // Créer la couche de tuiles avec le proxy
         const layer = L.tileLayer(tileUrl, {
           opacity: opacity,
           attribution: 'NASA GIBS',
           maxZoom: 8,
           minZoom: 3,
           tileSize: 256,
-          crossOrigin: true,
-          // Ajouter un timestamp pour éviter le cache
-          _: Date.now(),
+          // Pas besoin de crossOrigin car le proxy gère CORS
         });
 
         // Ajouter des événements pour le débogage
@@ -375,38 +367,12 @@ const Map = ({
           if (error.tile) {
             console.error(`   Tuile URL: ${error.tile.src}`);
           }
-          
-          // Si trop d'erreurs, essayer avec un proxy CORS
-          if (tileErrorCount > 5 && mapRef.current) {
-            console.log(`🔄 Trop d'erreurs pour ${gibsLayer}, tentative avec proxy CORS...`);
-            
-            // Supprimer la couche défaillante
-            if (wmsLayersRef.current[layerDef.value]) {
-              mapRef.current.removeLayer(wmsLayersRef.current[layerDef.value]);
-              delete wmsLayersRef.current[layerDef.value];
-            }
-            
-            // Utiliser un proxy CORS (attention: le proxy a des limitations)
-            const proxyUrl = 'https://corsproxy.io/?';
-            const proxyTileUrl = `${proxyUrl}https://gibs.earthdata.nasa.gov/tile/epsg4326/best/{z}/{x}/{y}/${gibsLayer}.png`;
-            
-            const fallbackLayer = L.tileLayer(proxyTileUrl, {
-              opacity: opacity,
-              attribution: 'NASA GIBS (via proxy)',
-              maxZoom: 8,
-              minZoom: 3,
-              tileSize: 256,
-            }).addTo(mapRef.current);
-            
-            wmsLayersRef.current[layerDef.value] = fallbackLayer;
-            console.log(`✅ Couche fallback ${gibsLayer} ajoutée avec proxy CORS`);
-          }
         });
 
         // Ajouter la couche à la carte
         layer.addTo(mapRef.current);
         wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte (tuiles directes)`);
+        console.log(`✅ Couche ${gibsLayer} ajoutée à la carte (proxy backend)`);
 
         // Forcer un redimensionnement après l'ajout
         setTimeout(() => {
