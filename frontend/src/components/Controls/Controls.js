@@ -3,12 +3,18 @@ import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
 
-// Liste des couches disponibles (sans les WMS qui ne fonctionnent pas)
+// Liste des couches disponibles
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points - API JSON) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
+  // --- Leaflet.OpenMeteo (plugin) ---
+  { 
+    value: 'openmeteo_plugin', 
+    label: '🌦️ Météo (Leaflet.OpenMeteo)', 
+    type: 'openmeteo_plugin' 
+  },
 ];
 
 const Controls = ({
@@ -266,7 +272,9 @@ const Controls = ({
                   disabled={loading}
                 />
                 <span className="wms-layer-name">{layer.label}</span>
-                <span className="wms-layer-type">📊</span>
+                <span className="wms-layer-type">
+                  {layer.type === 'openmeteo_plugin' ? '🌐' : '📊'}
+                </span>
               </label>
               {isLayerActive(layer.value) && (
                 <div className="wms-layer-opacity">
@@ -295,7 +303,7 @@ const Controls = ({
             : 'Aucune couche active'}
         </small>
         <small className="control-help" style={{ color: '#6c757d', marginTop: '2px' }}>
-          💡 Données Open-Meteo en temps réel (API JSON)
+          💡 Leaflet.OpenMeteo affiche un widget météo interactif
         </small>
       </div>
 
