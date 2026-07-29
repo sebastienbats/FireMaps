@@ -93,7 +93,6 @@ const Controls = ({
     if (saved && saved.length >= 32) setIsKeyValid(true);
   }, []);
 
-  // Gérer l'activation/désactivation d'une couche
   const handleLayerToggle = (layer) => {
     setActiveWmsLayers(prev => {
       const exists = prev.find(l => l.value === layer.value);
@@ -105,7 +104,6 @@ const Controls = ({
     });
   };
 
-  // Gérer le changement d'opacité d'une couche
   const handleLayerOpacityChange = (layerValue, opacity) => {
     setActiveWmsLayers(prev => 
       prev.map(l => 
@@ -114,12 +112,10 @@ const Controls = ({
     );
   };
 
-  // Vérifier si une couche est active
   const isLayerActive = (layerValue) => {
     return activeWmsLayers.some(l => l.value === layerValue);
   };
 
-  // Obtenir l'opacité d'une couche
   const getLayerOpacity = (layerValue) => {
     const layer = activeWmsLayers.find(l => l.value === layerValue);
     return layer ? layer.opacity : wmsOpacity;
@@ -273,7 +269,7 @@ const Controls = ({
         </div>
       </div>
 
-      {/* Couches WMS - Multi-sélection */}
+      {/* Couches WMS */}
       <div className="control-group">
         <label className="control-label">
           <span className="icon">🗺️</span> Couches WMS
