@@ -3,37 +3,12 @@ import L from 'leaflet';
 import './Map.css';
 import { fetchWeatherData, getFallbackWeatherData } from '../../services/weatherService';
 
-// Liste des couches WMS disponibles
+// Liste des couches disponibles (sans WMS)
 const WMS_LAYERS = [
-  // --- Open-Meteo (météo en points) ---
+  // --- Open-Meteo (météo en points - API JSON) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
   { value: 'precipitation', label: '🌧️ Précipitations', type: 'weather' },
   { value: 'cloudcover', label: '☁️ Couverture nuageuse', type: 'weather' },
-  // --- Open-Meteo (tuiles WMS) ---
-  { 
-    value: 'temperature_wms', 
-    label: '🌡️ Température (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'temperature_2m'
-  },
-  { 
-    value: 'precipitation_wms', 
-    label: '🌧️ Précipitations (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'precipitation'
-  },
-  { 
-    value: 'cloudcover_wms', 
-    label: '☁️ Couverture nuageuse (WMS)', 
-    type: 'openmeteo_wms',
-    layer: 'cloud_cover'
-  },
-  // --- Leaflet.OpenMeteo (plugin CDN) ---
-  { 
-    value: 'openmeteo_plugin', 
-    label: '🌦️ Météo (Leaflet.OpenMeteo)', 
-    type: 'openmeteo_plugin'
-  },
 ];
 
 // Vérification des plugins
@@ -43,16 +18,6 @@ const isHeatLayerAvailable = () => {
 
 const isVelocityLayerAvailable = () => {
   try { return typeof L !== 'undefined' && typeof L.velocityLayer === 'function'; } catch(e) { return false; }
-};
-
-const isOpenMeteoPluginAvailable = () => {
-  try { 
-    return typeof L !== 'undefined' && 
-           typeof L.Control !== 'undefined' && 
-           typeof L.Control.OpenMeteo === 'function'; 
-  } catch(e) { 
-    return false; 
-  }
 };
 
 // Chargement dynamique de leaflet.heat
@@ -101,10 +66,8 @@ const Map = ({
   const heatmapRef = useRef(null);
   const alertRefs = useRef([]);
   const velocityRef = useRef(null);
-  const wmsLayersRef = useRef({});
   const weatherLayerRef = useRef(null);
   const weatherDataRef = useRef(null);
-  const openMeteoControlRef = useRef(null);
 
   // Fonctions météo
   const getColorForTemperature = (temp) => {
@@ -302,143 +265,6 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES WMS (Open-Meteo WMS) ===
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const activeWmsValues = activeWmsLayers
-      .filter(l => {
-        const def = WMS_LAYERS.find(d => d.value === l.value);
-        return def && def.type === 'openmeteo_wms';
-      })
-      .map(l => l.value);
-
-    console.log(`🔍 Couches WMS Open-Meteo actives: ${activeWmsValues.join(', ') || 'aucune'}`);
-
-    Object.keys(wmsLayersRef.current).forEach(key => {
-      if (!activeWmsValues.includes(key)) {
-        if (wmsLayersRef.current[key] && mapRef.current) {
-          mapRef.current.removeLayer(wmsLayersRef.current[key]);
-          delete wmsLayersRef.current[key];
-          console.log(`🗑️ Couche WMS supprimée: ${key}`);
-        }
-      }
-    });
-
-    activeWmsLayers.forEach(layerDef => {
-      const fullDef = WMS_LAYERS.find(l => l.value === layerDef.value);
-      if (!fullDef || fullDef.type !== 'openmeteo_wms') return;
-
-      const existingLayer = wmsLayersRef.current[layerDef.value];
-      const opacity = layerDef.opacity || wmsOpacity;
-
-      if (existingLayer) {
-        existingLayer.setOpacity(opacity);
-        return;
-      }
-
-      const layerName = fullDef.layer;
-      console.log(`🌦️ Ajout de la couche WMS Open-Meteo: ${layerName}`);
-
-      try {
-        const tileUrl = `https://api.open-meteo.com/v1/map/{z}/{x}/{y}/${layerName}.png`;
-        const layer = L.tileLayer(tileUrl, {
-          opacity: opacity,
-          attribution: 'Météo © Open-Meteo',
-          maxZoom: 8,
-          minZoom: 3,
-          tileSize: 256,
-          crossOrigin: true,
-        });
-
-        layer.on('loading', () => console.log(`⏳ Chargement des tuiles WMS ${layerName}...`));
-        layer.on('load', () => console.log(`✅ ${layerName} WMS chargé`));
-        layer.on('tileerror', (err) => console.error(`❌ Erreur tuile WMS ${layerName}:`, err));
-
-        layer.addTo(mapRef.current);
-        wmsLayersRef.current[layerDef.value] = layer;
-        console.log(`✅ Couche WMS ${layerName} ajoutée à la carte`);
-
-        setTimeout(() => {
-          if (mapRef.current) mapRef.current.invalidateSize();
-        }, 500);
-
-      } catch (error) {
-        console.error(`❌ Erreur lors de l'ajout de la couche WMS ${layerName}:`, error);
-      }
-    });
-
-    return () => {
-      Object.values(wmsLayersRef.current).forEach(layer => {
-        if (mapRef.current) mapRef.current.removeLayer(layer);
-      });
-      wmsLayersRef.current = {};
-    };
-  }, [activeWmsLayers, wmsOpacity]);
-
-  // === GESTION DE LA COUCHE LEAFLET.OPENMETEO (CDN) ===
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (openMeteoControlRef.current) {
-      mapRef.current.removeControl(openMeteoControlRef.current);
-      openMeteoControlRef.current = null;
-    }
-
-    const isOpenMeteoActive = activeWmsLayers.some(l => {
-      const def = WMS_LAYERS.find(d => d.value === l.value);
-      return def && def.type === 'openmeteo_plugin';
-    });
-
-    if (!isOpenMeteoActive) return;
-
-    // Vérifier que le plugin est chargé (via CDN)
-    if (isOpenMeteoPluginAvailable()) {
-      console.log('🌦️ Ajout de la couche Leaflet.OpenMeteo...');
-      
-      try {
-        const control = new L.Control.OpenMeteo({
-          title: 'Météo France',
-          center: [46.6, 2.2],
-          zoom: 6,
-          opacity: wmsOpacity,
-          position: 'topright',
-          width: 300,
-          height: 300,
-          variables: {
-            temperature: true,
-            precipitation: true,
-            cloudcover: true,
-            windspeed: true,
-            pressure: true,
-            humidity: true,
-          },
-          colors: {
-            temperature: '#e67e22',
-            precipitation: '#3498db',
-            cloudcover: '#95a5a6',
-          }
-        });
-
-        control.addTo(mapRef.current);
-        openMeteoControlRef.current = control;
-        
-        console.log('✅ Leaflet.OpenMeteo ajouté avec succès');
-      } catch (error) {
-        console.error('❌ Erreur lors de l\'ajout de Leaflet.OpenMeteo:', error);
-      }
-    } else {
-      console.warn('⚠️ Leaflet.OpenMeteo non disponible. Vérifiez le chargement du CDN.');
-    }
-
-    return () => {
-      if (openMeteoControlRef.current && mapRef.current) {
-        mapRef.current.removeControl(openMeteoControlRef.current);
-        openMeteoControlRef.current = null;
-      }
-    };
-  }, [activeWmsLayers, wmsOpacity]);
-
   // === COUCHE MÉTÉO (points) ===
   useEffect(() => {
     if (!mapRef.current) return;
@@ -448,6 +274,7 @@ const Map = ({
       weatherLayerRef.current = null;
     }
 
+    // Vérifier si une couche météo est active
     const weatherLayer = activeWmsLayers.find(l => {
       const def = WMS_LAYERS.find(d => d.value === l.value);
       return def && def.type === 'weather';
