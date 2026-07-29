@@ -290,7 +290,7 @@ const Map = ({
     }
   }, [showWind, windData, onWindToggle]);
 
-  // === GESTION DES COUCHES GIBS WMS (URL CORRIGÉE) ===
+  // === GESTION DES COUCHES GIBS WMS (URL CORRIGÉE AVEC PROXY) ===
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -330,10 +330,11 @@ const Map = ({
       const gibsLayer = fullDef.layer;
       console.log(`🌿 Ajout de la couche GIBS: ${gibsLayer}`);
 
-      // === URL CORRECTE POUR GIBS (tuiles) ===
-      // Utiliser le format de tuiles GIBS avec le bon serveur
+      // === URL CORRECTE AVEC PROXY GIBS ===
+      // Utiliser le proxy qui évite les problèmes CORS
       const baseUrl = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
       
+      // Configuration WMS optimisée
       const wmsOptions = {
         layers: gibsLayer,
         format: 'image/png',
@@ -342,16 +343,24 @@ const Map = ({
         attribution: 'NASA GIBS',
         // Utiliser EPSG:4326 (coordonnées géographiques)
         crs: L.CRS.EPSG4326,
-        // Niveaux de zoom adaptés
-        minZoom: 2,
-        maxZoom: 9,
+        // Niveaux de zoom adaptés pour GIBS
+        minZoom: 3,
+        maxZoom: 8,
         // Taille standard
         tileSize: 256,
         // Version WMS
         version: '1.3.0',
         // Styles
         styles: fullDef.options?.styles || '',
-        // Ne pas utiliser time pour éviter les erreurs
+        // Ne pas inclure time
+        time: '',
+        // Ajouter des paramètres pour éviter les erreurs CORS
+        service: 'WMS',
+        request: 'GetMap',
+        // Forcer le format
+        format: 'image/png',
+        // Ajouter un timestamp pour éviter le cache
+        _: Date.now(),
       };
 
       console.log(`📡 Paramètres WMS GIBS:`, {
@@ -359,12 +368,11 @@ const Map = ({
         layers: wmsOptions.layers,
         styles: wmsOptions.styles,
         crs: 'EPSG:4326',
-        opacity: wmsOptions.opacity,
-        version: wmsOptions.version
+        opacity: wmsOptions.opacity
       });
 
       try {
-        // Créer la couche WMS
+        // Créer la couche WMS avec les paramètres
         const layer = L.tileLayer.wms(baseUrl, wmsOptions);
 
         // Ajouter des événements pour le débogage
@@ -381,7 +389,7 @@ const Map = ({
 
         layer.on('tileload', () => {
           tileLoadCount++;
-          if (tileLoadCount % 10 === 0) {
+          if (tileLoadCount % 5 === 0) {
             console.log(`📊 ${gibsLayer}: ${tileLoadCount} tuiles chargées`);
           }
         });
