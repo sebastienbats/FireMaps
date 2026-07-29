@@ -3,7 +3,7 @@ import Select from 'react-select';
 import { PacmanLoader } from 'react-spinners';
 import './Controls.css';
 
-// Liste des couches WMS disponibles avec labels clairs
+// Liste des couches WMS disponibles avec options spécifiques
 const WMS_LAYERS = [
   // --- Open-Meteo (météo en points) ---
   { value: 'temperature', label: '🌡️ Température', type: 'weather' },
@@ -15,7 +15,10 @@ const WMS_LAYERS = [
     label: '🌿 Végétation (NDVI - MODIS)', 
     type: 'gibs', 
     layer: 'MOD13A2_NDVI',
-    options: { styles: 'palette/ndvi' }
+    options: { 
+      styles: 'palette/ndvi',
+      styles_alt: 'ndvi'
+    }
   },
   { 
     value: 'lst_day', 
