@@ -45,8 +45,8 @@ Application web complète pour visualiser :
 
 1. Clonez le dépôt.
    ```bash
-   git clone https://github.com/sebastienbats/FireMaps.git
-   cd FireMaps
+   git clone https://github.com/sebastienbats/FireMaps-Leaflet.git
+   cd FireMaps-Leaflet
    ```
 2. Installation et exécution
    ```bash
@@ -62,7 +62,7 @@ Application web complète pour visualiser :
 
 ## 📦 Structure
 ```text
-FireMaps/
+FireMaps-Leaflet/
 ├── backend/
 │   ├── package.json
 │   ├── server.js
