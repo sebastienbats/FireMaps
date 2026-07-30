@@ -1,4 +1,4 @@
-# 🔥 FireMaps
+# 🔥 FireMaps-Leaflet
 
 Application web complète pour visualiser :
 - les feux actifs (NASA FIRMS),
